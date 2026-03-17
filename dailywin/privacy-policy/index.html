@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>DailyWin</title>
+    <script>
+      // Redirect to SPA — this file exists so GitHub Pages serves 200 instead of 404
+      // The main index.html SPA redirect handler will take care of routing
+      var l = window.location;
+      l.replace(
+        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+        '/dailywin/?/privacy-policy' + l.hash
+      );
+    </script>
+  </head>
+  <body></body>
+</html>
