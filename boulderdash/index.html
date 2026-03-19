@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
+<meta name="apple-mobile-web-app-title" content="Boulder Dash">
+<meta name="theme-color" content="#0a0a0f">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-180x180.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152x152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180x180.png">
+<title>Boulder Dash</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    font-family: 'Press Start 2P', monospace;
+    overflow: hidden;
+    touch-action: none;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  #ui {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 480px;
+    padding: 8px 12px;
+    background: #111118;
+    border-bottom: 2px solid #f5a623;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .stat-label {
+    font-size: 6px;
+    color: #888;
+    letter-spacing: 1px;
+  }
+
+  .stat-value {
+    font-size: 12px;
+    color: #f5a623;
+  }
+
+  #lives-display { color: #ff4444; }
+  #diamonds-display { color: #44ddff; }
+  #time-display { color: #ff4444; }
+
+  #canvas-container {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #000;
+  }
+
+  #controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 8px;
+    padding: 12px;
+    width: 100%;
+    max-width: 480px;
+    background: #111118;
+    border-top: 2px solid #333;
+  }
+
+  .dpad-btn {
+    background: #1a1a28;
+    border: 2px solid #333;
+    border-radius: 8px;
+    color: #f5a623;
+    font-size: 20px;
+    padding: 14px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background 0.05s, border-color 0.05s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .dpad-btn:active, .dpad-btn.pressed {
+    background: #f5a623;
+    border-color: #f5a623;
+    color: #000;
+  }
+
+  .btn-up    { grid-column: 2; grid-row: 1; }
+  .btn-left  { grid-column: 1; grid-row: 2; }
+  .btn-down  { grid-column: 2; grid-row: 2; }
+  .btn-right { grid-column: 3; grid-row: 2; }
+
+  #overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    z-index: 10;
+  }
+
+  #overlay h1 {
+    font-size: 20px;
+    color: #f5a623;
+    text-shadow: 0 0 20px #f5a62388;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  #overlay h2 {
+    font-size: 11px;
+    color: #aaa;
+    text-align: center;
+    line-height: 2;
+  }
+
+  #overlay p {
+    font-size: 8px;
+    color: #666;
+    text-align: center;
+    line-height: 2;
+  }
+
+  #start-btn {
+    background: #f5a623;
+    color: #000;
+    border: none;
+    padding: 14px 28px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 4px;
+    letter-spacing: 1px;
+    transition: transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 4px 0 #a06a00;
+  }
+  #start-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #a06a00;
+  }
+
+  #swipe-hint {
+    font-size: 7px;
+    color: #444;
+    text-align: center;
+    padding: 4px 12px;
+    background: #111118;
+  }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div class="stat"><span class="stat-label">SCORE</span><span class="stat-value" id="score-display">0</span></div>
+  <div class="stat"><span class="stat-label">DIAMONDS</span><span class="stat-value" id="diamonds-display">0/0</span></div>
+  <div class="stat"><span class="stat-label">TIME</span><span class="stat-value" id="time-display">150</span></div>
+  <div class="stat"><span class="stat-label">LIVES</span><span class="stat-value" id="lives-display">3</span></div>
+  <div class="stat"><span class="stat-label">LEVEL</span><span class="stat-value" id="level-display">1</span></div>
+</div>
+
+<div id="canvas-container">
+  <canvas id="gameCanvas"></canvas>
+  <div id="overlay">
+    <h1>BOULDER<br>DASH</h1>
+    <h2 id="overlay-sub">Zbieraj diamenty!<br>Unikaj skał!</h2>
+    <p id="overlay-info">Potrzebujesz diamentów by<br>otworzyć wyjście</p>
+    <button id="start-btn">▶ GRAJ</button>
+  </div>
+</div>
+
+<div id="swipe-hint">SWIPE lub użyj przycisków ↓</div>
+
+<div id="controls">
+  <button class="dpad-btn btn-up" data-dir="up">▲</button>
+  <button class="dpad-btn btn-left" data-dir="left">◀</button>
+  <button class="dpad-btn btn-down" data-dir="down">▼</button>
+  <button class="dpad-btn btn-right" data-dir="right">▶</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Tiles
+const T = {
+  EMPTY: 0,
+  DIRT: 1,
+  WALL: 2,
+  STEEL: 3,
+  BOULDER: 4,
+  DIAMOND: 5,
+  PLAYER: 6,
+  EXIT: 7,
+  FALLING_BOULDER: 8,
+  FALLING_DIAMOND: 9,
+  EXPLOSION: 10,
+  BUTTERFLY: 11,
+  AMOEBA: 12,
+};
+
+const TILE = 32;
+const COLS = 22;
+const ROWS = 14;
+
+canvas.width = COLS * TILE;
+canvas.height = ROWS * TILE;
+
+// Color palette - retro CGA/EGA feel
+const COLORS = {
+  [T.EMPTY]:   '#000000',
+  [T.DIRT]:    '#8B4513',
+  [T.WALL]:    '#556B2F',
+  [T.STEEL]:   '#708090',
+  [T.BOULDER]: '#A0522D',
+  [T.DIAMOND]: '#00FFFF',
+  [T.PLAYER]:  '#FFD700',
+  [T.EXIT]:    '#00FF00',
+  [T.EXPLOSION]:'#FF6600',
+  [T.BUTTERFLY]:'#FF1493',
+  [T.AMOEBA]:  '#9932CC',
+};
+
+// Levels data
+const LEVELS = [
+  {
+    diamonds: 6, time: 120, score_per_diamond: 20,
+    map: [
+      "SSSSSSSSSSSSSSSSSSSSSS",
+      "S..........D..........S",
+      "S.WWWW.BBB..WWWW......S",
+      "S.D....B..B.....D.....S",
+      "S.WWWW.B..B.WWWW......S",
+      "S......BBB....D.......S",
+      "S..D..........B.......S",
+      "S.WWWW.....WWWW.......S",
+      "S...D..BB......D......S",
+      "S......BB.............S",
+      "S..D...........D......S",
+      "S.....WWWWWW..........S",
+      "SP.................E..S",
+      "SSSSSSSSSSSSSSSSSSSSSS",
+    ]
+  },
+  {
+    diamonds: 8, time: 100, score_per_diamond: 30,
+    map: [
+      "SSSSSSSSSSSSSSSSSSSSSS",
+      "S..D.....B..B.....D...S",
+      "S.WWW....B..B....WWW..S",
+      "S..D.....BBB......D...S",
+      "S........B.B..........S",
+      "S....D...B..B....D....S",
+      "S.WWWWWWWW..WWWWWWWW..S",
+      "S....D.............D..S",
+      "S..B.....D.D.....B....S",
+      "S.BBB...........BBB...S",
+      "S..B.....D.D.....B....S",
+      "S.WWWW.........WWWW...S",
+      "SP...D...D.D...D....E.S",
+      "SSSSSSSSSSSSSSSSSSSSSS",
+    ]
+  },
+  {
+    diamonds: 10, time: 90, score_per_diamond: 40,
+    map: [
+      "SSSSSSSSSSSSSSSSSSSSSS",
+      "S....B.B.B.B.B.B......S",
+      "S.D..B.B.B.B.B.B..D...S",
+      "S.WWWB.B.B.B.B.BWWW..S",
+      "S....B.B.B.B.B.B......S",
+      "S.D.................D.S",
+      "S.WWW...D.D.D...WWW...S",
+      "S.......D.D.D.........S",
+      "S.D.....D.D.D.....D...S",
+      "S.WWW.........D...WWW.S",
+      "S.....D.D.D.D.D.......S",
+      "S.D...............D...S",
+      "SP..D.D.D.D.D.D...E...S",
+      "SSSSSSSSSSSSSSSSSSSSSS",
+    ]
+  }
+];
+
+// Game state
+let grid = [];
+let playerX, playerY;
+let score = 0, lives = 3, level = 0;
+let diamondsCollected = 0, diamondsNeeded = 0;
+let timeLeft = 150;
+let gameRunning = false;
+let exitOpen = false;
+let animFrame = 0;
+let explosions = [];
+let butterflies = [];
+let lastMove = 0;
+let moveDelay = 150;
+let fallTimer = 0;
+let fallDelay = 100;
+let timerInterval = null;
+let gameOver = false;
+let levelComplete = false;
+
+function initLevel() {
+  const lvl = LEVELS[level % LEVELS.length];
+  diamondsNeeded = lvl.diamonds;
+  diamondsCollected = 0;
+  timeLeft = lvl.time;
+  exitOpen = false;
+  explosions = [];
+  butterflies = [];
+  grid = [];
+
+  for (let r = 0; r < ROWS; r++) {
+    grid[r] = [];
+    for (let c = 0; c < COLS; c++) {
+      const ch = lvl.map[r]?.[c] || ' ';
+      if (ch === 'S') grid[r][c] = T.STEEL;
+      else if (ch === 'W') grid[r][c] = T.WALL;
+      else if (ch === 'B') grid[r][c] = T.BOULDER;
+      else if (ch === 'D') grid[r][c] = T.DIAMOND;
+      else if (ch === 'P') { grid[r][c] = T.EMPTY; playerX = c; playerY = r; }
+      else if (ch === 'E') grid[r][c] = T.EXIT;
+      else if (ch === 'f') grid[r][c] = T.BUTTERFLY;
+      else grid[r][c] = T.DIRT;
+    }
+  }
+
+  updateUI();
+}
+
+function updateUI() {
+  document.getElementById('score-display').textContent = score;
+  document.getElementById('diamonds-display').textContent = diamondsCollected + '/' + diamondsNeeded;
+  document.getElementById('time-display').textContent = timeLeft;
+  document.getElementById('lives-display').textContent = lives;
+  document.getElementById('level-display').textContent = (level % LEVELS.length) + 1;
+}
+
+function isPassable(r, c) {
+  const t = grid[r]?.[c];
+  return t === T.EMPTY || t === T.DIRT || t === T.DIAMOND || t === T.EXIT;
+}
+
+function tryPushBoulder(pr, pc, dr, dc) {
+  const nr = pr + dr;
+  const nc = pc + dc;
+  if (dc !== 0 && dr === 0) {
+    if (grid[nr]?.[nc] === T.BOULDER) {
+      const nr2 = nr + dr;
+      const nc2 = nc + dc;
+      if (grid[nr2]?.[nc2] === T.EMPTY) {
+        grid[nr2][nc2] = T.BOULDER;
+        grid[nr][nc] = T.EMPTY;
+        return true;
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+function movePlayer(dr, dc) {
+  if (!gameRunning || gameOver || levelComplete) return;
+  const now = Date.now();
+  if (now - lastMove < moveDelay) return;
+  lastMove = now;
+
+  const nr = playerY + dr;
+  const nc = playerX + dc;
+
+  if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) return;
+
+  const target = grid[nr][nc];
+
+  if (target === T.STEEL || target === T.WALL) return;
+
+  if (target === T.BOULDER) {
+    if (!tryPushBoulder(nr, nc, dr, dc)) return;
+  }
+
+  if (target === T.EXIT) {
+    if (!exitOpen) return;
+    levelComplete = true;
+    score += timeLeft * 5;
+    updateUI();
+    showOverlay('POZIOM UKOŃCZONY!', 'Zdobyłeś: ' + score + ' pkt', 'Następny poziom...');
+    setTimeout(() => {
+      level++;
+      levelComplete = false;
+      initLevel();
+      hideOverlay();
+    }, 2000);
+    return;
+  }
+
+  if (target === T.BUTTERFLY) {
+    explode(nr, nc);
+    return;
+  }
+
+  if (target === T.DIAMOND) {
+    diamondsCollected++;
+    score += LEVELS[level % LEVELS.length].score_per_diamond;
+    if (diamondsCollected >= diamondsNeeded) {
+      exitOpen = true;
+    }
+    updateUI();
+  }
+
+  grid[playerY][playerX] = T.EMPTY;
+  playerY = nr;
+  playerX = nc;
+  if (grid[playerY][playerX] !== T.EXIT) {
+    grid[playerY][playerX] = T.EMPTY;
+  }
+  updateUI();
+}
+
+function explode(r, c) {
+  let hitPlayer = false;
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const er = r + dr;
+      const ec = c + dc;
+      if (er >= 0 && er < ROWS && ec >= 0 && ec < COLS) {
+        if (grid[er][ec] !== T.STEEL) {
+          explosions.push({r: er, c: ec, t: 8});
+          grid[er][ec] = T.EMPTY;
+        }
+        if (er === playerY && ec === playerX) hitPlayer = true;
+      }
+    }
+  }
+  if (hitPlayer) playerDie();
+}
+
+let playerDying = false;
+
+function playerDie() {
+  if (!gameRunning || gameOver || playerDying) return;
+  playerDying = true;
+  lives--;
+  updateUI();
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const er = playerY + dr, ec = playerX + dc;
+      if (er >= 0 && er < ROWS && ec >= 0 && ec < COLS && grid[er][ec] !== T.STEEL) {
+        explosions.push({r: er, c: ec, t: 12});
+        grid[er][ec] = T.EMPTY;
+      }
+    }
+  }
+  if (lives <= 0) {
+    gameOver = true;
+    gameRunning = false;
+    clearInterval(timerInterval);
+    setTimeout(() => {
+      playerDying = false;
+      showOverlay('GAME OVER', 'Wynik: ' + score, '');
+      document.getElementById('start-btn').textContent = '↺ NOWA GRA';
+      document.getElementById('start-btn').onclick = () => { score = 0; lives = 3; level = 0; startGame(); };
+    }, 1500);
+  } else {
+    setTimeout(() => {
+      playerDying = false;
+      initLevel();
+    }, 1000);
+  }
+}
+
+function physicsStep() {
+  if (!gameRunning || gameOver || levelComplete) return;
+
+  let playerHit = false;
+
+  // Process falling boulders and diamonds
+  for (let r = ROWS - 2; r >= 0; r--) {
+    for (let c = 0; c < COLS; c++) {
+      const t = grid[r][c];
+      if (t === T.BOULDER || t === T.DIAMOND) {
+        // Fall down
+        if (grid[r+1]?.[c] === T.EMPTY) {
+          grid[r+1][c] = t;
+          grid[r][c] = T.EMPTY;
+          // Check if landed on player — defer kill to after loop
+          if (r+1 === playerY && c === playerX) {
+            playerHit = true;
+          }
+        }
+        // Roll off
+        else if (r+1 < ROWS && (grid[r+1][c] === T.BOULDER || grid[r+1][c] === T.WALL || grid[r+1][c] === T.STEEL || grid[r+1][c] === T.DIAMOND)) {
+          if (c+1 < COLS && grid[r][c+1] === T.EMPTY && grid[r+1][c+1] === T.EMPTY) {
+            grid[r][c+1] = t;
+            grid[r][c] = T.EMPTY;
+          } else if (c-1 >= 0 && grid[r][c-1] === T.EMPTY && grid[r+1][c-1] === T.EMPTY) {
+            grid[r][c-1] = t;
+            grid[r][c] = T.EMPTY;
+          }
+        }
+      }
+    }
+  }
+
+  // Apply kill after full physics pass — no mid-loop state corruption
+  if (playerHit && !gameOver && !levelComplete) {
+    playerDie();
+  }
+}
+
+let lastPhysics = 0;
+let loopId = null;
+
+function gameLoop(ts) {
+  if (!gameRunning) return;
+
+  animFrame++;
+
+  if (ts - lastPhysics > 200) {
+    physicsStep();
+    lastPhysics = ts;
+  }
+
+  render();
+  loopId = requestAnimationFrame(gameLoop);
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const t = grid[r][c];
+      const x = c * TILE;
+      const y = r * TILE;
+
+      drawTile(ctx, t, x, y, r, c);
+    }
+  }
+
+  // Draw explosions
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    const e = explosions[i];
+    const prog = 1 - e.t / 8;
+    ctx.fillStyle = `rgba(255, ${Math.floor(100 + prog * 155)}, 0, ${e.t / 8})`;
+    ctx.fillRect(e.c * TILE, e.r * TILE, TILE, TILE);
+    // sparkle
+    ctx.fillStyle = `rgba(255,255,255,${e.t/8})`;
+    ctx.fillRect(e.c * TILE + TILE/4, e.r * TILE + TILE/4, TILE/2, TILE/2);
+    e.t--;
+    if (e.t <= 0) explosions.splice(i, 1);
+  }
+
+  // Draw player
+  drawPlayer(ctx, playerX * TILE, playerY * TILE);
+}
+
+function drawTile(ctx, t, x, y, r, c) {
+  switch(t) {
+    case T.EMPTY:
+      ctx.fillStyle = '#050508';
+      ctx.fillRect(x, y, TILE, TILE);
+      break;
+
+    case T.DIRT:
+      ctx.fillStyle = '#6B3A1F';
+      ctx.fillRect(x, y, TILE, TILE);
+      // texture dots
+      ctx.fillStyle = '#7D4A28';
+      ctx.fillRect(x+4, y+4, 4, 4);
+      ctx.fillRect(x+16, y+10, 3, 3);
+      ctx.fillRect(x+8, y+20, 4, 4);
+      ctx.fillRect(x+22, y+22, 3, 3);
+      break;
+
+    case T.STEEL:
+      ctx.fillStyle = '#3a3a4a';
+      ctx.fillRect(x, y, TILE, TILE);
+      ctx.strokeStyle = '#555577';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x+1, y+1, TILE-2, TILE-2);
+      ctx.fillStyle = '#4a4a5a';
+      ctx.fillRect(x+4, y+4, TILE-8, TILE-8);
+      break;
+
+    case T.WALL:
+      ctx.fillStyle = '#2D4A1E';
+      ctx.fillRect(x, y, TILE, TILE);
+      ctx.fillStyle = '#3D6A2E';
+      ctx.fillRect(x+2, y+2, TILE-4, TILE-4);
+      ctx.fillStyle = '#1D3A10';
+      ctx.fillRect(x, y, TILE, 2);
+      ctx.fillRect(x, y+TILE-2, TILE, 2);
+      break;
+
+    case T.BOULDER: {
+      const blink = (animFrame % 8 < 4) ? 0 : 10;
+      ctx.fillStyle = '#8B5A2B';
+      ctx.beginPath();
+      ctx.arc(x+TILE/2, y+TILE/2, TILE/2-2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = `rgb(${140+blink}, ${100+blink}, ${60+blink})`;
+      ctx.beginPath();
+      ctx.arc(x+TILE/2-4, y+TILE/2-4, TILE/4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#5a3010';
+      ctx.beginPath();
+      ctx.arc(x+TILE/2+4, y+TILE/2+4, TILE/6, 0, Math.PI*2);
+      ctx.fill();
+      break;
+    }
+
+    case T.DIAMOND: {
+      const pulse = Math.sin(animFrame * 0.15 + c + r) * 0.3 + 0.7;
+      ctx.save();
+      ctx.translate(x + TILE/2, y + TILE/2);
+      ctx.rotate(animFrame * 0.05);
+      ctx.fillStyle = `rgba(0, ${Math.floor(200*pulse)}, ${Math.floor(255*pulse)}, 1)`;
+      ctx.beginPath();
+      ctx.moveTo(0, -TILE/2+4);
+      ctx.lineTo(TILE/2-4, 0);
+      ctx.lineTo(0, TILE/2-4);
+      ctx.lineTo(-TILE/2+4, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = `rgba(180, 255, 255, ${pulse*0.8})`;
+      ctx.beginPath();
+      ctx.moveTo(0, -TILE/2+8);
+      ctx.lineTo(TILE/4, -2);
+      ctx.lineTo(0, TILE/4);
+      ctx.lineTo(-TILE/4, -2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+
+    case T.EXIT: {
+      if (exitOpen) {
+        const flash = (animFrame % 10 < 5);
+        ctx.fillStyle = flash ? '#00FF44' : '#007722';
+        ctx.fillRect(x, y, TILE, TILE);
+        ctx.fillStyle = flash ? '#AAFFCC' : '#005511';
+        ctx.font = `${TILE-8}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⬡', x+TILE/2, y+TILE/2);
+      } else {
+        ctx.fillStyle = '#1a3a1a';
+        ctx.fillRect(x, y, TILE, TILE);
+        ctx.fillStyle = '#2a5a2a';
+        ctx.fillRect(x+4, y+4, TILE-8, TILE-8);
+      }
+      break;
+    }
+
+    case T.BUTTERFLY: {
+      const bf = Math.sin(animFrame * 0.2) * 4;
+      ctx.fillStyle = '#FF1493';
+      ctx.beginPath();
+      ctx.ellipse(x+TILE/2-6, y+TILE/2+bf, 8, 5, -0.3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x+TILE/2+6, y+TILE/2+bf, 8, 5, 0.3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#FF69B4';
+      ctx.beginPath();
+      ctx.arc(x+TILE/2, y+TILE/2+bf, 3, 0, Math.PI*2);
+      ctx.fill();
+      break;
+    }
+  }
+}
+
+function drawPlayer(ctx, x, y) {
+  const bob = Math.sin(animFrame * 0.2) * 2;
+  ctx.save();
+  ctx.translate(x, y + bob);
+
+  // Body
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(TILE/2, TILE/2, TILE/2-3, 0, Math.PI*2);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(TILE/2-5, TILE/2-3, 3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(TILE/2+5, TILE/2-3, 3, 0, Math.PI*2);
+  ctx.fill();
+
+  // Pupils (animated)
+  ctx.fillStyle = '#fff';
+  const eyeOff = (animFrame % 60 < 30) ? 1 : -1;
+  ctx.beginPath();
+  ctx.arc(TILE/2-5+eyeOff, TILE/2-3, 1.5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(TILE/2+5+eyeOff, TILE/2-3, 1.5, 0, Math.PI*2);
+  ctx.fill();
+
+  // Helmet
+  ctx.fillStyle = '#888888';
+  ctx.fillRect(TILE/2-10, TILE/2-TILE/2+4, 20, 8);
+  ctx.fillStyle = '#aaaaaa';
+  ctx.fillRect(TILE/2-8, TILE/2-TILE/2+5, 16, 5);
+
+  // Lamp
+  ctx.fillStyle = '#FFFF00';
+  const lampFlicker = (animFrame % 4 < 3);
+  if (lampFlicker) {
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#FFFF00';
+  }
+  ctx.beginPath();
+  ctx.arc(TILE/2, TILE/2-TILE/2+6, 3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+function showOverlay(title, sub, info) {
+  document.getElementById('overlay').style.display = 'flex';
+  document.getElementById('overlay').querySelector('h1').textContent = title;
+  document.getElementById('overlay-sub').textContent = sub;
+  document.getElementById('overlay-info').textContent = info;
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').style.display = 'none';
+}
+
+function startGame() {
+  if (loopId) { cancelAnimationFrame(loopId); loopId = null; }
+  gameOver = false;
+  levelComplete = false;
+  gameRunning = false;
+  initLevel();
+  hideOverlay();
+  lastPhysics = 0;
+  animFrame = 0;
+  playerDying = false;
+  gameRunning = true;
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (!gameRunning || gameOver || levelComplete) return;
+    timeLeft--;
+    updateUI();
+    if (timeLeft <= 0) {
+      playerDie();
+    }
+  }, 1000);
+  loopId = requestAnimationFrame(gameLoop);
+}
+
+// Controls
+document.querySelectorAll('.dpad-btn').forEach(btn => {
+  const dir = btn.dataset.dir;
+  const dirs = { up: [-1,0], down: [1,0], left: [0,-1], right: [0,1] };
+
+  const press = (e) => {
+    e.preventDefault();
+    btn.classList.add('pressed');
+    const [dr, dc] = dirs[dir];
+    movePlayer(dr, dc);
+  };
+  const release = () => btn.classList.remove('pressed');
+
+  btn.addEventListener('touchstart', press, {passive: false});
+  btn.addEventListener('mousedown', press);
+  btn.addEventListener('touchend', release, {passive: false});
+  btn.addEventListener('mouseup', release);
+});
+
+// Keyboard
+const keyMap = {
+  ArrowUp: [-1,0], ArrowDown: [1,0], ArrowLeft: [0,-1], ArrowRight: [0,1],
+  w: [-1,0], s: [1,0], a: [0,-1], d: [0,1],
+};
+let keyRepeat = {};
+document.addEventListener('keydown', e => {
+  if (keyMap[e.key]) {
+    e.preventDefault();
+    if (!keyRepeat[e.key]) {
+      keyRepeat[e.key] = true;
+      const [dr, dc] = keyMap[e.key];
+      movePlayer(dr, dc);
+    }
+  }
+});
+document.addEventListener('keyup', e => { keyRepeat[e.key] = false; });
+
+// Swipe
+let touchStartX, touchStartY;
+document.getElementById('canvas-container').addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, {passive: true});
+
+document.getElementById('canvas-container').addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+  if (Math.max(adx, ady) < 20) return;
+  if (adx > ady) movePlayer(0, dx > 0 ? 1 : -1);
+  else movePlayer(dy > 0 ? 1 : -1, 0);
+}, {passive: true});
+
+// Start button
+document.getElementById('start-btn').addEventListener('click', () => {
+  score = 0; lives = 3; level = 0;
+  startGame();
+});
+document.getElementById('start-btn').addEventListener('touchend', e => {
+  e.preventDefault();
+  score = 0; lives = 3; level = 0;
+  startGame();
+}, {passive: false});
+
+// Initial render
+initLevel();
+render();
+</script>
+<script>
+if('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(r => console.log('SW registered'))
+      .catch(e => console.log('SW error', e));
+  });
+}
+</script>
+</body>
+</html>
