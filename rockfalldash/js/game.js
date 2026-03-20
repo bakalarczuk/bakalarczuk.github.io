@@ -37,6 +37,7 @@ function move(dr, dc) {
     grid[playerY][playerX]=EMPTY;
     playerY=nr; playerX=nc;
     updateHUD();
+    saveGame();
     setTimeout(() => { showLoadingScreen(stars); }, 400);
     return;
   }
@@ -84,10 +85,12 @@ function playerDie() {
     running=false; clearInterval(timerInt);
     setTimeout(() => {
       dyingLock=false; playerDying=false;
+      clearSave();
       pendingScore=score; showGameOver(score);
     }, 1400);
   } else {
     setTimeout(() => {
+      saveGame();
       dyingLock=false; playerDying=false; initLevel();
     }, 1000);
   }
@@ -279,6 +282,15 @@ window.addEventListener('DOMContentLoaded', () => {
     setupBtn('db-down',  1, 0);
     setupBtn('db-left',  0,-1);
     setupBtn('db-right', 0, 1);
+    // Show continue button if save exists
+    const save = loadSave();
+    const btnContinue = document.getElementById('btn-continue');
+    if (save) {
+      btnContinue.style.display = '';
+      btnContinue.textContent = `⟳ KONTYNUUJ (LVL ${save.level+1})`;
+    }
+    btnContinue.addEventListener('click', continueGame);
+    btnContinue.addEventListener('touchend', (e) => { e.preventDefault(); continueGame(); }, {passive:false});
     document.getElementById('btn-start').addEventListener('click', startGame);
     document.getElementById('btn-start').addEventListener('touchend', (e) => { e.preventDefault(); startGame(); }, {passive:false});
     document.getElementById('btn-scores').addEventListener('click', () => { lbRender(); showOv('ov-lb'); });

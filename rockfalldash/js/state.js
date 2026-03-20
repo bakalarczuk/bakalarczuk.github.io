@@ -17,6 +17,26 @@ let pendingScore =0;
 let levelStartTime = 0;  // time when level started
 let levelStartTimeLeft = 150;  // timeLeft at level start
 const STARS_KEY = 'rfd_stars_v1';
+const SAVE_KEY  = 'rfd_save_v1';
+
+function saveGame() {
+  try {
+    const data = { level, score, lives, ts: Date.now() };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function loadSave() {
+  try {
+    const data = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (!data) return null;
+    return data;
+  } catch(e) { return null; }
+}
+
+function clearSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch(e) {}
+}
 function starsLoad() { try { return JSON.parse(localStorage.getItem(STARS_KEY))||{}; } catch(e) { return {}; } }
 function starsGet(lvl) { return starsLoad()[lvl] || 0; }
 function starsSet(lvl, s) { const d=starsLoad(); d[lvl]=Math.max(d[lvl]||0,s); localStorage.setItem(STARS_KEY,JSON.stringify(d)); }

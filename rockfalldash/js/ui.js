@@ -55,6 +55,24 @@ function showLoadingScreen(earnedStars) {
   requestAnimationFrame(animBar);
 }
 
+function continueGame() {
+  const save = loadSave();
+  if (!save) { startGame(); return; }
+  if (loopId) cancelAnimationFrame(loopId);
+  clearInterval(timerInt);
+  score=save.score; lives=save.lives; level=save.level;
+  dyingLock=false; playerDying=false; pts=20;
+  initLevel();
+  showOv(null);
+  running=true; lastPhys=0; animFrame=0;
+  timerInt=setInterval(() => {
+    if (!running||playerDying||dyingLock||levelDone) return;
+    timeLeft--; updateHUD();
+    if (timeLeft<=0) playerDie();
+  }, 1000);
+  loopId=requestAnimationFrame(gameLoop);
+}
+
 function startGame() {
   if (loopId) cancelAnimationFrame(loopId);
   clearInterval(timerInt);
