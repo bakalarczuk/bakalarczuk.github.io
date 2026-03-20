@@ -422,6 +422,7 @@ let lastMove =0, moveDelay=160;
 let walkFrame=0, lastMoveTime=0;
 let holdInt =null;
 let pendingScore =0;
+let scorePopups = [];
 
 function initLevel() {
   let gen = generateLevel(level);
@@ -432,6 +433,7 @@ function initLevel() {
   playerDying=false; levelDone=false;
   playerX=gen.playerX; playerY=gen.playerY;
   grid=[]; falling=[];
+  scorePopups = [];
   for (let r=0; r<ROWS; r++) {
     grid[r]=gen.grid[r].slice();
     falling[r]=[];
@@ -524,6 +526,7 @@ function move(dr, dc) {
     // Bonus multiplier for gems collected beyond minimum
     let bonus = gemsGot > gemsNeeded ? 3 : 1;
     score += pts * bonus;
+    scorePopups.push({x: playerX*T, y: playerY*T, val: pts*bonus, t: 48, bonus: bonus>1});
     if (bonus > 1) {
       // Flash score element to signal bonus
       let el = document.getElementById('h-score');
@@ -602,6 +605,20 @@ function render() {
   if (pvc>=0&&pvc<VW&&pvr>=0&&pvr<VH) {
     if (!playerDying||animFrame%8<4) drawPlayer(pvc*T,pvr*T,animFrame);
   }
+  // Score popups
+  ctx.save();
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'center';
+  for (let i = scorePopups.length - 1; i >= 0; i--) {
+    let s = scorePopups[i];
+    let color = s.bonus ? '#00ffff' : '#ffd700';
+    ctx.fillStyle = color;
+    ctx.globalAlpha = Math.max(0, s.t / 48);
+    ctx.fillText('+' + s.val, s.x - camC*T + T/2, s.y - camR*T - (48 - s.t) + T/2);
+    s.t--;
+    if (s.t <= 0) scorePopups.splice(i, 1);
+  }
+  ctx.restore();
 }
 
 // ── Game loop ─────────────────────────────────────────
