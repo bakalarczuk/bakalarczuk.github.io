@@ -53,8 +53,8 @@ function drawSpr(rects, ox, oy) {
 function drawDiamond(ox, oy, frame, gr, gc) {
   let t = (frame*3 + gr*7 + gc*11) % 16;
   let cols = [14,16,14,15,14,16,13,16,14,15,14,16,14,15,16,14];
-  let c = PAL[cols[t]];
-  let d = PAL[15];
+  let c = currentPAL[cols[t]];
+  let d = currentPAL[15];
   ctx.fillStyle = c;
   ctx.fillRect(ox+7,oy+0,2,2); ctx.fillRect(ox+5,oy+2,6,2); ctx.fillRect(ox+3,oy+4,10,2);
   ctx.fillRect(ox+1,oy+6,14,2); ctx.fillRect(ox+1,oy+8,14,2); ctx.fillRect(ox+3,oy+10,10,2);
@@ -86,17 +86,17 @@ function drawPlayer(ox, oy, frame) {
 function drawExit(ox, oy, open, frame) {
   if (!open) { drawSpr(STEEL_S,ox,oy); ctx.fillStyle='#222'; ctx.fillRect(ox+4,oy+4,8,8); return; }
   let fl = Math.floor(frame/6)%2;
-  ctx.fillStyle = fl ? PAL[18] : PAL[19]; ctx.fillRect(ox,oy,16,16);
-  ctx.fillStyle = fl ? PAL[21] : PAL[18]; ctx.fillRect(ox+2,oy+2,12,12);
-  ctx.fillStyle = fl ? PAL[13] : PAL[21]; ctx.fillRect(ox+5,oy+5,6,6);
+  ctx.fillStyle = fl ? currentPAL[18] : currentPAL[19]; ctx.fillRect(ox,oy,16,16);
+  ctx.fillStyle = fl ? currentPAL[21] : currentPAL[18]; ctx.fillRect(ox+2,oy+2,12,12);
+  ctx.fillStyle = fl ? currentPAL[13] : currentPAL[21]; ctx.fillRect(ox+5,oy+5,6,6);
 }
 
 function drawExplosion(ox, oy, t) {
   let cols = [22,24,20,21,13];
   let ci = Math.min(4, Math.floor((10-t)/2));
-  ctx.fillStyle = PAL[cols[ci]];
+  ctx.fillStyle = currentPAL[cols[ci]];
   ctx.fillRect(ox,oy,16,16);
-  ctx.fillStyle = PAL[cols[Math.min(4,ci+1)]];
+  ctx.fillStyle = currentPAL[cols[Math.min(4,ci+1)]];
   let m = t*1.2|0;
   ctx.fillRect(ox+m,oy+m,16-m*2,16-m*2);
 }

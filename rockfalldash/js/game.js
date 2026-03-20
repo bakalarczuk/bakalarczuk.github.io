@@ -10,7 +10,7 @@ function move(dr, dc) {
   let nr =playerY+dr, nc=playerX+dc;
   if (nr<0||nr>=ROWS||nc<0||nc>=COLS) return;
   let tgt = grid[nr][nc];
-  if (tgt===STEEL||tgt===WALL) return;
+  if (tgt===STEEL||tgt===WALL||tgt===AMOEBA||tgt===MAGIC) return;
   if (tgt===BOULDER) {
     // Sprawdź, czy za kamieniem jest puste pole
     let nnr = nr + dr, nnc = nc + dc;

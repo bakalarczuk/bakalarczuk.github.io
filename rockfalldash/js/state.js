@@ -60,7 +60,6 @@ function initLevel() {
     }
   }
   applyWorld(level);
-  levelStartTimeLeft = 0;  // set after gen
   updateHUD();
 }
 

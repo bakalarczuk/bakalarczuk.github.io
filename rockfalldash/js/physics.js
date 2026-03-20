@@ -48,7 +48,7 @@ function physics() {
           // else stable rest — not falling
         }
         // Magic wall: boulder/diamond enters magic tile → transforms below
-        if (below === MAGIC && !magicActive && !magicTimer) {
+        if (below === MAGIC && !magicActive) {
           magicActive = true; magicTimer = 0;
         }
         if (below === MAGIC && magicActive) {
@@ -125,10 +125,9 @@ function tickAmoeba() {
     }
   }
 
-  // Kill player if amoeba touches them
+  // Kill player if amoeba is on same tile
   for (const a of cells) {
-    if (Math.abs(a.r-playerY)<=1 && Math.abs(a.c-playerX)<=1 &&
-        a.r===playerY && a.c===playerX) {
+    if (a.r===playerY && a.c===playerX) {
       if (!playerDying && !dyingLock) playerDie();
       return;
     }
