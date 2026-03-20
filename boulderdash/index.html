@@ -409,6 +409,52 @@ function generateLevel(lvl) {
 }
 
 // ── Game state ────────────────────────────────────────
+// ── Sound ───────────────────────────────────────────────
+let audioCtx = null;
+function playSound(type) {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return; }
+  }
+  let o = audioCtx.createOscillator();
+  let g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  let now = audioCtx.currentTime;
+  if (type === 'boulder') {
+    o.type = 'square';
+    o.frequency.setValueAtTime(180, now);
+    o.frequency.linearRampToValueAtTime(90, now+0.18);
+    g.gain.setValueAtTime(0.13, now);
+    g.gain.linearRampToValueAtTime(0, now+0.2);
+    o.start(now);
+    o.stop(now+0.2);
+    return;
+  }
+  if (type === 'diamond') {
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(880, now);
+    o.frequency.linearRampToValueAtTime(1320, now+0.15);
+    g.gain.setValueAtTime(0.12, now);
+    g.gain.linearRampToValueAtTime(0, now+0.18);
+    o.start(now);
+    o.stop(now+0.18);
+  } else if (type === 'death') {
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(220, now);
+    o.frequency.linearRampToValueAtTime(110, now+0.4);
+    g.gain.setValueAtTime(0.18, now);
+    g.gain.linearRampToValueAtTime(0, now+0.45);
+    o.start(now);
+    o.stop(now+0.45);
+  } else if (type === 'level') {
+    o.type = 'square';
+    o.frequency.setValueAtTime(660, now);
+    o.frequency.linearRampToValueAtTime(990, now+0.25);
+    g.gain.setValueAtTime(0.15, now);
+    g.gain.linearRampToValueAtTime(0, now+0.28);
+    o.start(now);
+    o.stop(now+0.28);
+  }
+}
 let ROWS =14, COLS=22;
 let grid, playerX, playerY;
 let score =0, lives=3, level=0;
@@ -472,6 +518,7 @@ function physics() {
           // falls freely
           grid[r+1][c]=t; grid[r][c]=EMPTY;
           nextFalling[r+1][c]=true;
+          if (t === BOULDER) playSound('boulder');
           // kill only if was already falling and lands on player next row
           if (r+2===playerY && c===playerX && falling[r][c]) hit=true;
         } else if (!belowIsPlayer && r+1<ROWS &&
@@ -523,6 +570,7 @@ function move(dr, dc) {
   if (tgt===DIAMOND) {
     gemsGot++;
     try { navigator.vibrate(30); } catch(e) {}
+    playSound('diamond');
     // Bonus multiplier for gems collected beyond minimum
     let bonus = gemsGot > gemsNeeded ? 3 : 1;
     score += pts * bonus;
@@ -548,6 +596,7 @@ function playerDie() {
   if (dyingLock || playerDying || !running) return;
   dyingLock=true; playerDying=true;
   try { navigator.vibrate([100,50,100]); } catch(e) {}
+  playSound('death');
   lives--; updateHUD();
   for (let dr=-1; dr<=1; dr++) {
     for (let dc=-1; dc<=1; dc++) {
@@ -660,6 +709,7 @@ function showLoadingScreen() {
     } else {
       // Done — load next level
       ov.style.display = 'none';
+      playSound('level');
       level++;
       levelDone = false;
       dyingLock = false;
