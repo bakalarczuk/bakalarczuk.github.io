@@ -526,7 +526,7 @@ function move(dr, dc) {
     // Bonus multiplier for gems collected beyond minimum
     let bonus = gemsGot > gemsNeeded ? 3 : 1;
     score += pts * bonus;
-    scorePopups.push({x: playerX*T, y: playerY*T, val: pts*bonus, t: 48, bonus: bonus>1});
+    scorePopups.push({x: playerX*T, y: playerY*T, val: pts*bonus, t: 80, bonus: bonus>1});
     if (bonus > 1) {
       // Flash score element to signal bonus
       let el = document.getElementById('h-score');
@@ -613,8 +613,9 @@ function render() {
     let s = scorePopups[i];
     let color = s.bonus ? '#00ffff' : '#ffd700';
     ctx.fillStyle = color;
-    ctx.globalAlpha = Math.max(0, s.t / 48);
-    ctx.fillText('+' + s.val, s.x - camC*T + T/2, s.y - camR*T - (48 - s.t) + T/2);
+    ctx.globalAlpha = Math.max(0, s.t / 80);
+    // Move slower: vertical offset increases slower
+    ctx.fillText('+' + s.val, s.x - camC*T + T/2, s.y - camR*T - ((80 - s.t) * 0.5) + T/2);
     s.t--;
     if (s.t <= 0) scorePopups.splice(i, 1);
   }
