@@ -1,7 +1,7 @@
 {
-  "name": "Boulder Dash",
-  "short_name": "BoulderDash",
-  "description": "Klasyczna gra Boulder Dash - zbieraj diamenty, unikaj ska\u0142!",
+  "name": "Rock Fall Dash",
+  "short_name": "RockFallDash",
+  "description": "Zbieraj diamenty, uciekaj przed głazami!",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
