@@ -1,5 +1,5 @@
 // Boulder Dash PWA Service Worker
-const CACHE = 'boulderdash-v4';
+const CACHE = 'boulderdash-v6';
 const ASSETS = [
   './',
   './index.html',

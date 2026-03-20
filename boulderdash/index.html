@@ -149,7 +149,8 @@ canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; 
 #loading-level { font-size:22px; color:#00ffff; letter-spacing:4px; text-shadow:3px 3px 0 #004466; }
 #loading-bar-wrap { width:200px; height:12px; border:2px solid #333; background:#000; }
 #loading-bar { height:100%; width:0%; background:#f5a623; transition:width 0.05s; }
-#loading-info { font-size:7px; color:#666; letter-spacing:2px; text-align:center; line-height:2.2; }
+#loading-info { font-size:9px; color:#f5a623; letter-spacing:2px; text-align:center; line-height:2.2; }
+#loading-stars { font-size:18px; color:#ffd700; letter-spacing:4px; text-align:center; text-shadow:0 0 8px #ffd700; }
 </style>
 </head>
 <body>
@@ -205,7 +206,8 @@ canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; 
     <div id="loading-title">POZIOM UKOŃCZONY!</div>
     <div id="loading-level">POZIOM 1</div>
     <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
-    <div id="loading-info" id="loading-info"></div>
+    <div id="loading-stars"></div>
+  <div id="loading-info" id="loading-info"></div>
   </div>
 </div>
 
@@ -246,7 +248,7 @@ function resize() {
 }
 
 // ── Tile constants ────────────────────────────────────
-const EMPTY =0, DIRT=1, WALL=2, STEEL=3, BOULDER=4, DIAMOND=5, EXIT=7, BUTTERFLY=11;
+const EMPTY =0, DIRT=1, WALL=2, STEEL=3, BOULDER=4, DIAMOND=5, EXIT=7, BUTTERFLY=11, AMOEBA=12, MAGIC=13;
 
 // ── Pixel sprites — fillRect only ─────────────────────
 // Each entry: [x,y,w,h, colorIndex]
@@ -261,6 +263,29 @@ const PAL = [
   '#00ff44','#00cc33','#ff8800','#ffff00','#ff0000','#222222','#ff6600','#333333'
 ];
 
+// ── Worlds — color themes every 5 levels ────────────
+const WORLDS = [
+  { name:'CAVE',  minLvl:0,  pal:{1:'#5c3317',2:'#7a4a1e',3:'#3b5e1f',4:'#4e7a28',10:'#8b3a0a',11:'#c46820',12:'#e8943a'} },
+  { name:'LAVA',  minLvl:5,  pal:{1:'#3a1010',2:'#5a1818',3:'#6a1a0a',4:'#8a2a10',10:'#8b2200',11:'#c43800',12:'#e86020'} },
+  { name:'ICE',   minLvl:10, pal:{1:'#1a2a4a',2:'#2a3a6a',3:'#1a3a5a',4:'#2a5a7a',10:'#4a6a9a',11:'#7aaacc',12:'#aaddff'} },
+  { name:'DARK',  minLvl:15, pal:{1:'#111111',2:'#1a1a1a',3:'#0a0a0a',4:'#161616',10:'#2a1a0a',11:'#3a2a10',12:'#4a3a18'} },
+];
+
+function getWorld(lvl) {
+  for (let i = WORLDS.length-1; i >= 0; i--)
+    if (lvl >= WORLDS[i].minLvl) return WORLDS[i];
+  return WORLDS[0];
+}
+
+let currentPAL = PAL.slice(); // working copy
+
+function applyWorld(lvl) {
+  currentPAL = PAL.slice();
+  const w = getWorld(lvl);
+  for (const [idx, col] of Object.entries(w.pal))
+    currentPAL[parseInt(idx)] = col;
+}
+
 const DIRT_S = [[0,0,16,16,1],[2,2,3,3,2],[9,1,2,2,2],[13,5,2,2,2],[1,10,2,2,2],[7,13,3,3,2],[11,11,2,2,2],[4,7,2,2,0],[10,8,2,2,0]];
 const WALL_S = [[0,0,16,16,3],[1,1,14,14,4],[0,0,16,1,5],[0,15,16,1,5],[0,0,1,16,5],[15,0,1,16,5],[4,4,8,8,3],[5,5,6,6,4]];
 const STEEL_S = [[0,0,16,16,6],[1,1,14,14,7],[2,2,12,12,8],[1,1,14,2,9],[1,1,2,14,9],[5,5,6,6,6],[6,6,4,4,9]];
@@ -269,7 +294,7 @@ const BOULD_S = [[3,0,10,1,10],[1,1,14,2,10],[0,3,16,6,10],[1,9,14,2,10],[3,11,1
 function drawSpr(rects, ox, oy) {
   for (let i = 0; i < rects.length; i++) {
     let r = rects[i];
-    ctx.fillStyle = PAL[r[4]];
+    ctx.fillStyle = currentPAL[r[4]];
     ctx.fillRect(ox+r[0], oy+r[1], r[2], r[3]);
   }
 }
@@ -367,6 +392,36 @@ function drawButterfly(ox, oy, frame) {
   ctx.fillRect(ox+9, oy+3, 2, 1);
 }
 
+// ── Draw amoeba ──────────────────────────────────────
+function drawAmoeba(ox, oy, frame) {
+  const pulse = Math.floor(frame / 6) % 2;
+  ctx.fillStyle = pulse ? '#9932cc' : '#7a20aa';
+  ctx.fillRect(ox, oy, T, T);
+  ctx.fillStyle = pulse ? '#cc66ff' : '#aa44dd';
+  ctx.fillRect(ox+2, oy+2, 5, 5);
+  ctx.fillRect(ox+9, oy+5, 5, 4);
+  ctx.fillRect(ox+4, oy+10, 6, 4);
+  ctx.fillStyle = '#ff99ff';
+  ctx.fillRect(ox+3, oy+3, 2, 2);
+}
+
+// ── Draw magic wall ───────────────────────────────
+function drawMagicWall(ox, oy, frame, active) {
+  drawSpr(STEEL_S, ox, oy);
+  const fl = Math.floor(frame / 4) % 2;
+  if (active) {
+    ctx.fillStyle = fl ? '#ffff00' : '#ff8800';
+    ctx.fillRect(ox+3, oy+3, 10, 10);
+    ctx.fillStyle = fl ? '#ffffff' : '#ffcc00';
+    ctx.fillRect(ox+5, oy+5, 6, 6);
+  } else {
+    ctx.fillStyle = '#444466';
+    ctx.fillRect(ox+4, oy+4, 8, 8);
+    ctx.fillStyle = '#222244';
+    ctx.fillRect(ox+5, oy+5, 6, 6);
+  }
+}
+
 // ── Procedural level generator ───────────────────────
 // Difficulty ramps with level number (0-based)
 // Returns { rows, cols, gemsNeeded, gemsTotal, time, pts }
@@ -423,7 +478,7 @@ function generateLevel(lvl) {
   for (r=ey-1; r<=ey+1; r++) for (c=ex-1; c<=ex+1; c++) if(r>0&&r<rows-1&&c>0&&c<cols-1) { if(g[r][c]!==EXIT) g[r][c]=EMPTY; }
 
   // Spawn butterflies — 1 on level 0, more as difficulty rises
-  const numButterflies = 1 + Math.floor(diff / 3);
+  const numButterflies = diff < 3 ? 0 : Math.floor((diff - 2) / 3);
   let bAttempts = 0;
   let bPlaced = 0;
   while (bPlaced < numButterflies && bAttempts < 300) {
@@ -436,6 +491,34 @@ function generateLevel(lvl) {
         Math.abs(br - ey) + Math.abs(bc - ex) > 5) {
       g[br][bc] = BUTTERFLY;
       bPlaced++;
+    }
+  }
+
+  // Spawn amoeba (from level 5)
+  if (diff >= 5) {
+    const numAmoeba = 1 + Math.floor((diff-5) / 4);
+    let aAttempts = 0, aPlaced = 0;
+    while (aPlaced < numAmoeba && aAttempts < 200) {
+      aAttempts++;
+      const ar = 3 + Math.floor(rand()*(rows-6));
+      const ac = 3 + Math.floor(rand()*(cols-6));
+      if (g[ar][ac] === DIRT &&
+          Math.abs(ar-py)+Math.abs(ac-px) > 6 &&
+          Math.abs(ar-ey)+Math.abs(ac-ex) > 6) {
+        g[ar][ac] = AMOEBA; aPlaced++;
+      }
+    }
+  }
+
+  // Spawn magic wall (from level 3) — replace some wall tiles
+  if (diff >= 3) {
+    let mPlaced = 0;
+    for (let r=1; r<rows-1 && mPlaced < 2+Math.floor(diff/4); r++) {
+      for (let c=1; c<cols-1 && mPlaced < 2+Math.floor(diff/4); c++) {
+        if (g[r][c] === WALL && rand() < 0.15) {
+          g[r][c] = MAGIC; mPlaced++;
+        }
+      }
     }
   }
 
@@ -527,20 +610,39 @@ let lastMove =0, moveDelay=160;
 let walkFrame=0, lastMoveTime=0;
 let holdInt =null;
 let pendingScore =0;
+let levelStartTime = 0;  // time when level started
+let levelStartTimeLeft = 150;  // timeLeft at level start
+const STARS_KEY = 'bd_stars_v1';
+function starsLoad() { try { return JSON.parse(localStorage.getItem(STARS_KEY))||{}; } catch(e) { return {}; } }
+function starsGet(lvl) { return starsLoad()[lvl] || 0; }
+function starsSet(lvl, s) { const d=starsLoad(); d[lvl]=Math.max(d[lvl]||0,s); localStorage.setItem(STARS_KEY,JSON.stringify(d)); }
+function calcStars(timeLeft, startTimeLeft, allGems) {
+  const ratio = timeLeft / startTimeLeft;
+  if (ratio > 0.6 && allGems) return 3;
+  if (ratio > 0.3) return 2;
+  return 1;
+}
 let scorePopups = [];
 let butterflies = [];  // [{r, c, dir}] dir: 0=up,1=right,2=down,3=left
+let amoebaTimer = 0;   // ticks since last amoeba growth
+let amoebaSize  = 0;   // total amoeba tile count
+let magicTimer  = 0;   // ticks magic wall is active
+let magicActive = false;
 
 function initLevel() {
   let gen = generateLevel(level);
   ROWS=gen.rows; COLS=gen.cols;
   gemsNeeded=gen.gemsNeeded; gemsGot=0;
   timeLeft=gen.time; pts=gen.pts;
+  levelStartTimeLeft=gen.time;
   exitOpen=false; explosions=[];
   playerDying=false; levelDone=false;
   playerX=gen.playerX; playerY=gen.playerY;
   grid=[]; falling=[];
   scorePopups = [];
   butterflies = [];
+  amoebaTimer = 0; amoebaSize = 0;
+  magicTimer = 0; magicActive = false;
   for (let r=0; r<ROWS; r++) {
     grid[r]=gen.grid[r].slice();
     falling[r]=[];
@@ -553,6 +655,8 @@ function initLevel() {
       }
     }
   }
+  applyWorld(level);
+  levelStartTimeLeft = 0;  // set after gen
   updateHUD();
 }
 
@@ -583,22 +687,22 @@ function physics() {
         const belowIsPlayer = (r+1===playerY && c===playerX);
         // Player blocks boulder/diamond just like a wall
         if (below===EMPTY && !belowIsPlayer) {
-          // falls freely
-          grid[r+1][c]=t; grid[r][c]=EMPTY;
-          nextFalling[r+1][c]=true;
-          if (t === BOULDER) playSound('boulder');
-          // kill only if was already falling and lands on player next row
-          if (r+2===playerY && c===playerX && falling[r][c]) hit=true;
-          // boulder/diamond lands on butterfly → explode into diamonds
+          // Check if a butterfly is at r+1 BEFORE moving boulder there
           const bfHit = butterflies.findIndex(b => b.r === r+1 && b.c === c);
-          if (bfHit >= 0 && falling[r][c]) {
-            const bfr = butterflies[bfHit].r;
-            const bfc = butterflies[bfHit].c;
-            grid[r+1][c] = EMPTY; // remove the boulder/diamond that hit it
-            butterflyExplode(bfr, bfc);
+          if (bfHit >= 0) {
+            // Boulder/diamond hits butterfly — explode regardless of falling state
+            grid[r][c] = EMPTY;
+            butterflyExplode(butterflies[bfHit].r, butterflies[bfHit].c);
+          } else {
+            // falls freely
+            grid[r+1][c]=t; grid[r][c]=EMPTY;
+            nextFalling[r+1][c]=true;
+            if (t === BOULDER) playSound('boulder');
+            // kill player only if was already falling
+            if (r+2===playerY && c===playerX && falling[r][c]) hit=true;
           }
         } else if (!belowIsPlayer && r+1<ROWS &&
-                   (below===BOULDER||below===WALL||below===STEEL||below===DIAMOND)) {
+                   (below===BOULDER||below===WALL||below===STEEL||below===DIAMOND||below===MAGIC)) {
           // resting on solid — try to roll, but only if was falling
           if (falling[r][c]) {
             if (c+1<COLS && grid[r][c+1]===EMPTY && grid[r+1][c+1]===EMPTY) {
@@ -611,6 +715,21 @@ function physics() {
           }
           // else stable rest — not falling
         }
+        // Magic wall: boulder/diamond enters magic tile → transforms below
+        if (below === MAGIC && !magicActive && !magicTimer) {
+          magicActive = true; magicTimer = 0;
+        }
+        if (below === MAGIC && magicActive) {
+          const outTile = (t === BOULDER) ? DIAMOND : BOULDER;
+          const nr2 = r+2;
+          if (nr2 < ROWS && grid[nr2][c] === EMPTY) {
+            grid[r][c] = EMPTY;
+            grid[nr2][c] = outTile;
+            nextFalling[nr2][c] = true;
+          } else {
+            grid[r][c] = EMPTY; // boulder disappears
+          }
+        }
         // if belowIsPlayer — do nothing, player supports it
       }
     }
@@ -620,6 +739,68 @@ function physics() {
 
   // ── Butterfly movement (every other physics tick) ──
   if (animFrame % 2 === 0) moveButterflies();
+
+  // ── Amoeba growth ──
+  amoebaTimer++;
+  if (amoebaTimer % 8 === 0) tickAmoeba();
+
+  // ── Magic wall timer ──
+  if (magicActive) {
+    magicTimer++;
+    if (magicTimer > 120) { magicActive = false; }
+  }
+}
+
+function tickAmoeba() {
+  const cells = [];
+  for (let r=0; r<ROWS; r++)
+    for (let c=0; c<COLS; c++)
+      if (grid[r][c] === AMOEBA) cells.push({r,c});
+
+  amoebaSize = cells.length;
+
+  // Too large → all become boulders
+  if (amoebaSize > 60) {
+    for (const a of cells) grid[a.r][a.c] = BOULDER;
+    return;
+  }
+
+  // Check if enclosed (can't expand) → all become diamonds
+  let canExpand = false;
+  for (const a of cells) {
+    for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nr=a.r+dr, nc=a.c+dc;
+      if (nr>0&&nr<ROWS-1&&nc>0&&nc<COLS-1 && (grid[nr][nc]===EMPTY||grid[nr][nc]===DIRT)) {
+        canExpand = true; break;
+      }
+    }
+    if (canExpand) break;
+  }
+  if (!canExpand) {
+    for (const a of cells) grid[a.r][a.c] = DIAMOND;
+    return;
+  }
+
+  // Grow randomly into one adjacent dirt/empty
+  if (cells.length > 0) {
+    const src = cells[Math.floor(Math.random()*cells.length)];
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]].sort(()=>Math.random()-0.5);
+    for (const [dr,dc] of dirs) {
+      const nr=src.r+dr, nc=src.c+dc;
+      if (nr>0&&nr<ROWS-1&&nc>0&&nc<COLS-1 && (grid[nr][nc]===EMPTY||grid[nr][nc]===DIRT)) {
+        grid[nr][nc] = AMOEBA; break;
+      }
+    }
+  }
+
+  // Kill player if amoeba touches them
+  for (const a of cells) {
+    if (Math.abs(a.r-playerY)<=1 && Math.abs(a.c-playerX)<=1 &&
+        a.r===playerY && a.c===playerX) {
+      if (!playerDying && !dyingLock) playerDie();
+      return;
+    }
+  }
 }
 
 function moveButterflies() {
@@ -713,12 +894,17 @@ function move(dr, dc) {
     // Player steps into exit — move them there, then trigger transition
     levelDone=true;
     try { navigator.vibrate(150); } catch(e) {}
+    // Count total diamonds on map for 3-star check
+    let totalGems = 0;
+    for (let _r=0;_r<ROWS;_r++) for (let _c=0;_c<COLS;_c++) if(grid[_r][_c]===DIAMOND) totalGems++;
+    const allGems = (gemsGot >= gemsNeeded + totalGems);
+    const stars = calcStars(timeLeft, levelStartTimeLeft || timeLeft+1, allGems);
+    starsSet(level, stars);
     score+=timeLeft*5;
     grid[playerY][playerX]=EMPTY;
     playerY=nr; playerX=nc;
     updateHUD();
-    // Brief pause so player is visually inside exit, then loading screen
-    setTimeout(() => { showLoadingScreen(); }, 400);
+    setTimeout(() => { showLoadingScreen(stars); }, 400);
     return;
   }
   if (tgt===DIAMOND) {
@@ -794,6 +980,8 @@ function render() {
       else if (tile===BOULDER) drawSpr(BOULD_S,ox,oy);
       else if (tile===DIAMOND) drawDiamond(ox,oy,animFrame,gr,gc);
       else if (tile===EXIT)    drawExit(ox,oy,exitOpen,animFrame);
+      else if (tile===AMOEBA)  drawAmoeba(ox,oy,animFrame);
+      else if (tile===MAGIC)   drawMagicWall(ox,oy,animFrame,magicActive);
       else { ctx.fillStyle='#050508'; ctx.fillRect(ox,oy,T,T); }
     }
   }
@@ -843,7 +1031,7 @@ function gameLoop(ts) {
   loopId=requestAnimationFrame(gameLoop);
 }
 
-function showLoadingScreen() {
+function showLoadingScreen(earnedStars) {
   // Stop game loop, show loading screen with animated bar
   running = false;
   clearInterval(timerInt);
@@ -852,7 +1040,14 @@ function showLoadingScreen() {
 
   const ov = document.getElementById('ov-loading');
   ov.style.display = 'flex';
+  const nextWorld = getWorld(nextLevel);
+  const curWorld  = getWorld(level);
+  const worldChanged = nextWorld.name !== curWorld.name;
   document.getElementById('loading-level').textContent = `POZIOM ${nextLevel + 1}`;
+  document.getElementById('loading-title').textContent =
+    worldChanged ? `✦ ${nextWorld.name} ✦` : 'POZIOM UKOŃCZONY!';
+  document.getElementById('loading-stars').textContent =
+    earnedStars ? '★'.repeat(earnedStars) + '☆'.repeat(3-earnedStars) : '';
   document.getElementById('loading-info').innerHTML =
     `DIAMENTY: ${gen.gemsNeeded} &nbsp; CZAS: ${gen.time}s`;
 
@@ -1101,12 +1296,28 @@ window.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('touchend', (e) => { e.preventDefault(); }, {passive:false});
     // Keyboard
     const held ={};
+    const keyIntervals = {};  // one interval per key
     document.addEventListener('keydown', (e) => {
       if (held[e.key]) return; held[e.key]=true;
       const map ={'ArrowUp':[-1,0],'ArrowDown':[1,0],'ArrowLeft':[0,-1],'ArrowRight':[0,1],'w':[-1,0],'s':[1,0],'a':[0,-1],'d':[0,1]};
-      if (map[e.key]) { e.preventDefault(); let d =map[e.key]; move(d[0],d[1]); holdInt=setInterval(() => { move(d[0],d[1]); }, moveDelay); }
+      if (map[e.key]) {
+        e.preventDefault();
+        const d = map[e.key];
+        move(d[0], d[1]);
+        clearInterval(keyIntervals[e.key]);
+        keyIntervals[e.key] = setInterval(() => { move(d[0], d[1]); }, moveDelay);
+      }
     });
-    document.addEventListener('keyup', (e) => { held[e.key]=false; clearInterval(holdInt); });
+    document.addEventListener('keyup', (e) => {
+      held[e.key] = false;
+      clearInterval(keyIntervals[e.key]);
+      delete keyIntervals[e.key];
+    });
+    // Safety: clear all intervals on window blur
+    window.addEventListener('blur', () => {
+      for (const k in keyIntervals) { clearInterval(keyIntervals[k]); delete keyIntervals[k]; }
+      for (const k in held) held[k] = false;
+    });
   }
   // Run splash first, then boot game
   runSplash(() => requestAnimationFrame(boot));
