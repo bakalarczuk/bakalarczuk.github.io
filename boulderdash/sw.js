@@ -1,20 +1,23 @@
+// Boulder Dash PWA Service Worker
 const CACHE = 'boulderdash-v1';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-180x180.png',
-  './icons/icon-192x192.png',
-  './icons/icon-512x512.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/apple-touch-icon.png',
 ];
 
+// Install — cache all assets
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS))
+    caches.open(CACHE).then(cache => cache.addAll(ASSETS))
   );
   self.skipWaiting();
 });
 
+// Activate — clean old caches
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -24,8 +27,17 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
+// Fetch — cache first, then network
 self.addEventListener('fetch', e => {
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(resp => {
+        if (!resp || resp.status !== 200 || resp.type !== 'basic') return resp;
+        const clone = resp.clone();
+        caches.open(CACHE).then(cache => cache.put(e.request, clone));
+        return resp;
+      }).catch(() => caches.match('./index.html'));
+    })
   );
 });
