@@ -509,6 +509,7 @@ function move(dr, dc) {
     if (!exitOpen) return;
     // Player steps into exit — move them there, then trigger transition
     levelDone=true;
+    try { navigator.vibrate(150); } catch(e) {}
     score+=timeLeft*5;
     grid[playerY][playerX]=EMPTY;
     playerY=nr; playerX=nc;
@@ -519,6 +520,7 @@ function move(dr, dc) {
   }
   if (tgt===DIAMOND) {
     gemsGot++;
+    try { navigator.vibrate(30); } catch(e) {}
     // Bonus multiplier for gems collected beyond minimum
     let bonus = gemsGot > gemsNeeded ? 3 : 1;
     score += pts * bonus;
@@ -542,6 +544,7 @@ function move(dr, dc) {
 function playerDie() {
   if (dyingLock || playerDying || !running) return;
   dyingLock=true; playerDying=true;
+  try { navigator.vibrate([100,50,100]); } catch(e) {}
   lives--; updateHUD();
   for (let dr=-1; dr<=1; dr++) {
     for (let dc=-1; dc<=1; dc++) {
