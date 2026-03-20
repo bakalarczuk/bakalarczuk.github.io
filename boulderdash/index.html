@@ -246,7 +246,7 @@ function resize() {
 }
 
 // ── Tile constants ────────────────────────────────────
-const EMPTY =0, DIRT=1, WALL=2, STEEL=3, BOULDER=4, DIAMOND=5, EXIT=7;
+const EMPTY =0, DIRT=1, WALL=2, STEEL=3, BOULDER=4, DIAMOND=5, EXIT=7, BUTTERFLY=11;
 
 // ── Pixel sprites — fillRect only ─────────────────────
 // Each entry: [x,y,w,h, colorIndex]
@@ -325,6 +325,48 @@ function drawExplosion(ox, oy, t) {
   ctx.fillRect(ox+m,oy+m,16-m*2,16-m*2);
 }
 
+// ── Draw butterfly ──────────────────────────────────
+function drawButterfly(ox, oy, frame) {
+  // Alternates between two wing positions every 8 frames
+  const wing = Math.floor(frame / 8) % 2;
+  // Body — dark orange center
+  ctx.fillStyle = '#c86020';
+  ctx.fillRect(ox+6, oy+6, 4, 4);
+  ctx.fillStyle = '#f89040';
+  ctx.fillRect(ox+7, oy+7, 2, 2);
+  if (wing === 0) {
+    // Wings spread
+    ctx.fillStyle = '#f84800';
+    ctx.fillRect(ox+1, oy+2, 5, 5);   // top-left wing
+    ctx.fillRect(ox+10, oy+2, 5, 5);  // top-right wing
+    ctx.fillRect(ox+2, oy+8, 4, 4);   // bottom-left wing
+    ctx.fillRect(ox+10, oy+8, 4, 4);  // bottom-right wing
+    ctx.fillStyle = '#fc8800';
+    ctx.fillRect(ox+2, oy+3, 3, 3);
+    ctx.fillRect(ox+11, oy+3, 3, 3);
+    ctx.fillRect(ox+3, oy+9, 2, 2);
+    ctx.fillRect(ox+11, oy+9, 2, 2);
+  } else {
+    // Wings folded (smaller)
+    ctx.fillStyle = '#f84800';
+    ctx.fillRect(ox+3, oy+4, 4, 4);   // top-left wing
+    ctx.fillRect(ox+9, oy+4, 4, 4);   // top-right wing
+    ctx.fillRect(ox+3, oy+9, 3, 3);   // bottom-left wing
+    ctx.fillRect(ox+10, oy+9, 3, 3);  // bottom-right wing
+    ctx.fillStyle = '#fc8800';
+    ctx.fillRect(ox+4, oy+5, 2, 2);
+    ctx.fillRect(ox+10, oy+5, 2, 2);
+    ctx.fillRect(ox+4, oy+10, 2, 2);
+    ctx.fillRect(ox+10, oy+10, 2, 2);
+  }
+  // Antennae
+  ctx.fillStyle = '#fc8800';
+  ctx.fillRect(ox+6, oy+4, 1, 2);
+  ctx.fillRect(ox+9, oy+4, 1, 2);
+  ctx.fillRect(ox+5, oy+3, 2, 1);
+  ctx.fillRect(ox+9, oy+3, 2, 1);
+}
+
 // ── Procedural level generator ───────────────────────
 // Difficulty ramps with level number (0-based)
 // Returns { rows, cols, gemsNeeded, gemsTotal, time, pts }
@@ -379,6 +421,23 @@ function generateLevel(lvl) {
   let ex =cols-3, ey=2;
   g[ey][ex]=EXIT;
   for (r=ey-1; r<=ey+1; r++) for (c=ex-1; c<=ex+1; c++) if(r>0&&r<rows-1&&c>0&&c<cols-1) { if(g[r][c]!==EXIT) g[r][c]=EMPTY; }
+
+  // Spawn butterflies — 1 on level 0, more as difficulty rises
+  const numButterflies = 1 + Math.floor(diff / 3);
+  let bAttempts = 0;
+  let bPlaced = 0;
+  while (bPlaced < numButterflies && bAttempts < 300) {
+    bAttempts++;
+    const br = 2 + Math.floor(rand() * (rows - 4));
+    const bc = 2 + Math.floor(rand() * (cols - 4));
+    // Place on dirt, away from player start and exit
+    if (g[br][bc] === DIRT &&
+        Math.abs(br - py) + Math.abs(bc - px) > 5 &&
+        Math.abs(br - ey) + Math.abs(bc - ex) > 5) {
+      g[br][bc] = BUTTERFLY;
+      bPlaced++;
+    }
+  }
 
   // Count diamonds
   let dCount = 0;
@@ -469,6 +528,7 @@ let walkFrame=0, lastMoveTime=0;
 let holdInt =null;
 let pendingScore =0;
 let scorePopups = [];
+let butterflies = [];  // [{r, c, dir}] dir: 0=up,1=right,2=down,3=left
 
 function initLevel() {
   let gen = generateLevel(level);
@@ -480,10 +540,18 @@ function initLevel() {
   playerX=gen.playerX; playerY=gen.playerY;
   grid=[]; falling=[];
   scorePopups = [];
+  butterflies = [];
   for (let r=0; r<ROWS; r++) {
     grid[r]=gen.grid[r].slice();
     falling[r]=[];
-    for (let c=0; c<COLS; c++) falling[r][c]=false;
+    for (let c=0; c<COLS; c++) {
+      falling[r][c]=false;
+      // Collect butterfly positions into butterflies array
+      if (grid[r][c] === BUTTERFLY) {
+        butterflies.push({ r, c, dir: Math.floor(Math.random()*4) });
+        grid[r][c] = EMPTY; // butterflies tracked separately
+      }
+    }
   }
   updateHUD();
 }
@@ -521,6 +589,14 @@ function physics() {
           if (t === BOULDER) playSound('boulder');
           // kill only if was already falling and lands on player next row
           if (r+2===playerY && c===playerX && falling[r][c]) hit=true;
+          // boulder/diamond lands on butterfly → explode into diamonds
+          const bfHit = butterflies.findIndex(b => b.r === r+1 && b.c === c);
+          if (bfHit >= 0 && falling[r][c]) {
+            const bfr = butterflies[bfHit].r;
+            const bfc = butterflies[bfHit].c;
+            grid[r+1][c] = EMPTY; // remove the boulder/diamond that hit it
+            butterflyExplode(bfr, bfc);
+          }
         } else if (!belowIsPlayer && r+1<ROWS &&
                    (below===BOULDER||below===WALL||below===STEEL||below===DIAMOND)) {
           // resting on solid — try to roll, but only if was falling
@@ -541,6 +617,74 @@ function physics() {
   }
   falling = nextFalling;
   if (hit && !playerDying && !dyingLock) playerDie();
+
+  // ── Butterfly movement (every other physics tick) ──
+  if (animFrame % 2 === 0) moveButterflies();
+}
+
+function moveButterflies() {
+  // dir: 0=up, 1=right, 2=down, 3=left
+  const DR = [-1, 0, 1,  0];
+  const DC = [ 0, 1, 0, -1];
+
+  // Check if a cell is passable for butterfly (empty or dirt)
+  const passable = (r, c) => {
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return false;
+    const t = grid[r][c];
+    return t === EMPTY || t === DIRT;
+  };
+
+  for (let i = butterflies.length - 1; i >= 0; i--) {
+    const b = butterflies[i];
+
+    // Left-hand rule: try turn-left, forward, turn-right, reverse
+    const leftDir  = (b.dir + 3) % 4;
+    const rightDir = (b.dir + 1) % 4;
+    const backDir  = (b.dir + 2) % 4;
+
+    let moved = false;
+    for (const tryDir of [leftDir, b.dir, rightDir, backDir]) {
+      const nr = b.r + DR[tryDir];
+      const nc = b.c + DC[tryDir];
+      if (passable(nr, nc)) {
+        b.r = nr; b.c = nc; b.dir = tryDir;
+        moved = true;
+        break;
+      }
+    }
+
+    // Kill player on contact
+    if (!playerDying && !dyingLock) {
+      const dr = Math.abs(b.r - playerY);
+      const dc = Math.abs(b.c - playerX);
+      if (dr <= 1 && dc <= 1 && dr + dc <= 1) {
+        playerDie();
+        return;
+      }
+    }
+  }
+}
+
+function butterflyExplode(r, c) {
+  // Remove butterfly at r,c
+  butterflies = butterflies.filter(b => !(b.r === r && b.c === c));
+  score += 500;  // bonus for killing butterfly
+  updateHUD();
+  // 3×3 explosion: dirt → diamond, others → empty (except steel)
+  for (let er = r-1; er <= r+1; er++) {
+    for (let ec = c-1; ec <= c+1; ec++) {
+      if (er < 0 || er >= ROWS || ec < 0 || ec >= COLS) continue;
+      if (grid[er][ec] === STEEL) continue;
+      grid[er][ec] = DIAMOND;
+      explosions.push({r: er, c: ec, t: 10});
+    }
+  }
+  // Check if player is in explosion zone
+  if (!playerDying && !dyingLock) {
+    if (Math.abs(playerY - r) <= 1 && Math.abs(playerX - c) <= 1) {
+      playerDie();
+    }
+  }
 }
 
 // ── Movement ──────────────────────────────────────────
@@ -553,7 +697,17 @@ function move(dr, dc) {
   if (nr<0||nr>=ROWS||nc<0||nc>=COLS) return;
   let tgt = grid[nr][nc];
   if (tgt===STEEL||tgt===WALL) return;
-  if (tgt===BOULDER) return;
+  if (tgt===BOULDER) {
+    // Sprawdź, czy za kamieniem jest puste pole
+    let nnr = nr + dr, nnc = nc + dc;
+    if (nnr >= 0 && nnr < ROWS && nnc >= 0 && nnc < COLS && grid[nnr][nnc] === EMPTY) {
+      // Przesuń kamień
+      grid[nnr][nnc] = BOULDER;
+      grid[nr][nc] = EMPTY;
+    } else {
+      return;
+    }
+  }
   if (tgt===EXIT) {
     if (!exitOpen) return;
     // Player steps into exit — move them there, then trigger transition
@@ -650,6 +804,15 @@ function render() {
     ex.t--;
     if (ex.t<=0) explosions.splice(i,1);
   }
+  // Draw butterflies
+  for (let i = 0; i < butterflies.length; i++) {
+    const b = butterflies[i];
+    const bvc = b.c - camC, bvr = b.r - camR;
+    if (bvc >= 0 && bvc < VW && bvr >= 0 && bvr < VH) {
+      drawButterfly(bvc*T, bvr*T, animFrame);
+    }
+  }
+
   let pvc =playerX-camC, pvr=playerY-camR;
   if (pvc>=0&&pvc<VW&&pvr>=0&&pvr<VH) {
     if (!playerDying||animFrame%8<4) drawPlayer(pvc*T,pvr*T,animFrame);
