@@ -170,11 +170,11 @@ canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; 
 </div>
 
 <div id="hud">
-  <div class="hs"><span class="hl">WYNIK</span><span class="hv" id="h-score">0</span></div>
-  <div class="hs"><span class="hl">KLEJNOTY</span><span class="hv cyan" id="h-gems">0/0</span></div>
-  <div class="hs"><span class="hl">CZAS</span><span class="hv red" id="h-time">150</span></div>
-  <div class="hs"><span class="hl">ŻYCIA</span><span class="hv red" id="h-lives">3</span></div>
-  <div class="hs"><span class="hl">POZIOM</span><span class="hv" id="h-level">1</span></div>
+  <div class="hs"><span class="hl" id="hl-score">WYNIK</span><span class="hv" id="h-score">0</span></div>
+  <div class="hs"><span class="hl" id="hl-gems">KLEJNOTY</span><span class="hv cyan" id="h-gems">0/0</span></div>
+  <div class="hs"><span class="hl" id="hl-time">CZAS</span><span class="hv red" id="h-time">150</span></div>
+  <div class="hs"><span class="hl" id="hl-lives">ŻYCIA</span><span class="hv red" id="h-lives">3</span></div>
+  <div class="hs"><span class="hl" id="hl-level">POZIOM</span><span class="hv" id="h-level">1</span></div>
 </div>
 
 <div id="canvas-wrap">
@@ -182,10 +182,22 @@ canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; 
 
   <div id="ov-title" class="ov show">
     <h1>ROCK FALL<br>DASH</h1>
-    <p>▣ ZBIERAJ DIAMENTY<br>▣ UNIKAJ SKAŁ<br>▣ OTWÓRZ WYJŚCIE</p>
+    <p><span id="hint-1">▣ ZBIERAJ DIAMENTY</span><br><span id="hint-2">▣ UNIKAJ SKAŁ</span><br><span id="hint-3">▣ OTWÓRZ WYJŚCIE</span></p>
     <button class="btn8 sec" id="btn-continue" style="display:none">⟳ KONTYNUUJ</button>
     <button class="btn8" id="btn-start">▶ NOWA GRA</button>
     <button class="btn8 sec" id="btn-scores">🏆 WYNIKI</button>
+    <div id="lang-switcher" style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn8 sec" id="btn-lang-pl" onclick="setLang('pl');applyLang();" style="font-size:7px;padding:6px 10px;">🇵🇱 PL</button>
+      <button class="btn8 sec" id="btn-lang-en" onclick="setLang('en');applyLang();" style="font-size:7px;padding:6px 10px;">🇬🇧 EN</button>
+    </div>
+    <a href="https://ko-fi.com/marekbakalarczuk" target="_blank" id="btn-kofi"
+       style="display:flex;align-items:center;gap:6px;background:#FF5E5B;color:#fff;
+              font-family:'Press Start 2P',monospace;font-size:7px;letter-spacing:1px;
+              padding:8px 14px;text-decoration:none;margin-top:4px;
+              border-top:3px solid #ff8a88;border-left:3px solid #ff8a88;
+              border-bottom:3px solid #aa2a28;border-right:3px solid #aa2a28;">
+      ☕ BUY ME A COFFEE
+    </a>
   </div>
 
   <div id="ov-gameover" class="ov">
@@ -193,7 +205,7 @@ canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; 
     <div id="go-score" class="cyan"></div>
     <div id="go-rank"  class="sc2"></div>
     <div id="go-namewrap" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
-      <p>WPISZ INICJAŁY:</p>
+      <p id="go-initials">WPISZ INICJAŁY:</p>
       <input id="go-name" maxlength="3" placeholder="AAA">
       <button class="btn8 grn" id="btn-gosave">OK</button>
     </div>
@@ -224,6 +236,7 @@ canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; 
   <div class="db" id="db-right" style="grid-column:3;grid-row:2;">▶</div>
 </div>
 
+<script src="js/i18n.js"></script>
 <script src="js/constants.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/sprites.js"></script>

@@ -13,13 +13,13 @@ function showLoadingScreen(earnedStars) {
   const nextWorld = getWorld(nextLevel);
   const curWorld  = getWorld(level);
   const worldChanged = nextWorld.name !== curWorld.name;
-  document.getElementById('loading-level').textContent = `POZIOM ${nextLevel + 1}`;
+  document.getElementById('loading-level').textContent = `${t('loading_lvl')} ${nextLevel + 1}`;
   document.getElementById('loading-title').textContent =
-    worldChanged ? `✦ ${nextWorld.name} ✦` : 'POZIOM UKOŃCZONY!';
+    worldChanged ? `✦ ${nextWorld.name} ✦` : t('loading_done');
   document.getElementById('loading-stars').textContent =
     earnedStars ? '★'.repeat(earnedStars) + '☆'.repeat(3-earnedStars) : '';
   document.getElementById('loading-info').innerHTML =
-    `DIAMENTY: ${gen.gemsNeeded} &nbsp; CZAS: ${gen.time}s`;
+    `${t('loading_gems')}: ${gen.gemsNeeded} &nbsp; ${t('loading_time')}: ${gen.time}s`;
 
   // Animate bar 0→100% over 1.8s then load next level
   const bar = document.getElementById('loading-bar');
@@ -42,6 +42,7 @@ function showLoadingScreen(earnedStars) {
       levelDone = false;
       dyingLock = false;
       initLevel();
+      saveGame();  // save after level++ and initLevel so level number is correct
       running = true;
       lastPhys = 0;
       timerInt = setInterval(() => {
@@ -113,7 +114,7 @@ function lbRender(hi) {
   let a =lbLoad();
   let el =document.getElementById('lb-list');
   if (!el) return;
-  if (!a.length) { el.innerHTML='<div style="font-size:8px;color:#666;text-align:center;padding:10px;">BRAK WYNIKÓW</div>'; return; }
+  if (!a.length) { el.innerHTML=`<div style="font-size:8px;color:#666;text-align:center;padding:10px;">${t('no_scores')}</div>`; return; }
   el.innerHTML=a.map((e, i) => {
     const col =i===hi?'#00ffff':i===0?'#ffd700':i===1?'#c0c0c0':i===2?'#cd7f32':'#666';
     return '<div class="lbr" style="color:'+col+'">'
@@ -123,12 +124,12 @@ function lbRender(hi) {
   }).join('');
 }
 function showGameOver(pts) {
-  document.getElementById('go-score').textContent=`WYNIK: ${pts}`;
+  document.getElementById('go-score').textContent=`${t('lbl_score')}: ${pts}`;
   let a =lbLoad();
   let isTop =a.length<10||pts>(a.length?a[a.length-1].score:0);
   document.getElementById('go-namewrap').style.display=isTop?'flex':'none';
   let rank =a.filter((e) => { return e.score>pts; }).length+1;
-  document.getElementById('go-rank').textContent=isTop?`MIEJSCE #${rank} REKORD!`:`MIEJSCE #${Math.min(rank,99)}`;
+  document.getElementById('go-rank').textContent=isTop?`${t('lbl_rank')} #${rank} ${t('lbl_record')}`:`${t('lbl_rank')} #${Math.min(rank,99)}`;
   document.getElementById('go-name').value='';
   showOv('ov-gameover');
 }

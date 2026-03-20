@@ -37,7 +37,6 @@ function move(dr, dc) {
     grid[playerY][playerX]=EMPTY;
     playerY=nr; playerX=nc;
     updateHUD();
-    saveGame();
     setTimeout(() => { showLoadingScreen(stars); }, 400);
     return;
   }
@@ -275,6 +274,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let wrap =document.getElementById('canvas-wrap');
     if (!wrap||wrap.clientHeight<10) { requestAnimationFrame(boot); return; }
     resize();
+    applyLang();  // apply translations
     window.addEventListener('resize', resize);
     initLevel(); render();
     // Wire buttons
@@ -287,7 +287,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const btnContinue = document.getElementById('btn-continue');
     if (save) {
       btnContinue.style.display = '';
-      btnContinue.textContent = `⟳ KONTYNUUJ (LVL ${save.level+1})`;
+      btnContinue.textContent = `${t('btn_continue')} (LVL ${save.level+1})`;
     }
     btnContinue.addEventListener('click', continueGame);
     btnContinue.addEventListener('touchend', (e) => { e.preventDefault(); continueGame(); }, {passive:false});

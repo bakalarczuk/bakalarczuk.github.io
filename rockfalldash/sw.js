@@ -3,6 +3,7 @@ const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './js/i18n.js',
   './js/constants.js',
   './js/sprites.js',
   './js/audio.js',
