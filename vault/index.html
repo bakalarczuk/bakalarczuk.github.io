@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="application-name" content="Vault of the Ancients">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VaultAncients">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#8B3A00">
+<meta name="description" content="A retro 8-bit platformer — explore the cursed vault!">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<title>VAULT OF THE ANCIENTS</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  background:#000;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  min-height:100vh;
+  overflow:hidden;
+  font-family:'Press Start 2P',monospace;
+}
+#wrapper{
+  position:relative;
+  display:inline-block;
+}
+#hud{
+  background:#000;
+  width:640px;
+  padding:6px 12px 4px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  border:2px solid #444;
+  border-bottom:none;
+}
+.hud-left,.hud-right{display:flex;gap:16px;align-items:center;}
+.hud-item{font-size:8px;color:#fff;letter-spacing:1px;}
+.hud-val{color:#FFD700;}
+#lives-icons{display:flex;gap:4px;}
+.life-icon{width:10px;height:12px;background:#FF4500;clip-path:polygon(50% 0%,100% 30%,100% 100%,0% 100%,0% 30%);}
+canvas{display:block;border:2px solid #444;cursor:none;}
+#overlay{
+  position:absolute;
+  top:30px;left:0;right:0;bottom:0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.88);
+  z-index:10;
+}
+.title-main{
+  font-size:14px;color:#FFD700;
+  letter-spacing:3px;
+  text-shadow:0 0 20px #FF8C00,0 0 40px #FF4500;
+  text-align:center;line-height:2;
+}
+.title-sub{font-size:7px;color:#FF6600;letter-spacing:2px;margin-top:8px;}
+.blink{animation:blink 1s step-end infinite;}
+@keyframes blink{50%{opacity:0;}}
+.press-start{font-size:8px;color:#fff;margin-top:30px;letter-spacing:2px;}
+.high-score-disp{font-size:7px;color:#888;margin-top:12px;}
+#room-name{
+  position:absolute;
+  bottom:36px;left:50%;transform:translateX(-50%);
+  font-size:7px;color:#888;letter-spacing:1px;
+  white-space:nowrap;pointer-events:none;
+}
+#msg-flash{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  font-size:9px;color:#FFD700;
+  text-shadow:0 0 10px #FF8C00;
+  pointer-events:none;opacity:0;
+  transition:opacity 0.2s;
+  white-space:nowrap;
+}
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <div id="hud">
+    <div class="hud-left">
+      <span class="hud-item">LIVES <span class="hud-val" id="hLives">3</span></span>
+      <div id="lives-icons"></div>
+    </div>
+    <div class="hud-left">
+      <span class="hud-item">SCORE <span class="hud-val" id="hScore">000000</span></span>
+    </div>
+    <div class="hud-right">
+      <span class="hud-item">KEYS <span class="hud-val" id="hKeys">0</span></span>
+      <span class="hud-item">GEMS <span class="hud-val" id="hGems">0</span></span>
+      <span class="hud-item">SWORDS <span class="hud-val" id="hSwords">0</span></span>
+      <span class="hud-item">TORCH <span class="hud-val" id="hTorch">0</span></span>
+    </div>
+  </div>
+  <canvas id="c" width="640" height="480"></canvas>
+  <div id="room-name"></div>
+  <div id="msg-flash"></div>
+  <div id="overlay">
+    <div class="title-main">VAULT OF<br>THE ANCIENTS</div>
+    <div class="title-sub">— ENTER IF YOU DARE —</div>
+    <div class="press-start blink">PRESS SPACE TO START</div>
+    <div class="high-score-disp">HI-SCORE: <span id="hiScore">000000</span></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// =====================================================================
+//  VAULT OF THE ANCIENTS  — Full Game
+//  9 rooms, all enemies, Web Audio sfx, complete item system
+// =====================================================================
+
+const C = document.getElementById('c');
+const ctx = C.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+const W = 640, H = 480;
+const TS = 32;
+
+// ── Audio ──────────────────────────────────────────────────────────────
+let audioCtx = null;
+function initAudio(){
+  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+}
+function beep(freq,dur,type='square',vol=0.15,delay=0){
+  if(!audioCtx)return;
+  const g=audioCtx.createGain();
+  const o=audioCtx.createOscillator();
+  o.type=type;o.frequency.setValueAtTime(freq,audioCtx.currentTime+delay);
+  g.gain.setValueAtTime(vol,audioCtx.currentTime+delay);
+  g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+delay+dur);
+  o.connect(g);g.connect(audioCtx.destination);
+  o.start(audioCtx.currentTime+delay);
+  o.stop(audioCtx.currentTime+delay+dur+0.01);
+}
+function sfxJump(){beep(300,0.06,'square',0.12);beep(500,0.08,'square',0.10,0.06);}
+function sfxCollect(){
+  [600,800,1000,1200].forEach((f,i)=>beep(f,0.06,'sine',0.12,i*0.05));
+}
+function sfxKey(){
+  [400,500,700,900,1100].forEach((f,i)=>beep(f,0.07,'square',0.13,i*0.045));
+}
+function sfxDie(){
+  [400,300,200,150,100].forEach((f,i)=>beep(f,0.1,'sawtooth',0.18,i*0.08));
+}
+function sfxDoor(){
+  [500,600,700,800,900,1000].forEach((f,i)=>beep(f,0.06,'sine',0.14,i*0.04));
+}
+function sfxSword(){beep(800,0.05,'square',0.15);beep(400,0.1,'sawtooth',0.10,0.05);}
+function sfxWin(){
+  const notes=[523,659,784,1047,784,659,523];
+  notes.forEach((f,i)=>beep(f,0.15,'sine',0.18,i*0.12));
+}
+
+// ── Tile constants ─────────────────────────────────────────────────────
+const T={
+  EMPTY:0, WALL:1, LADDER:2, ROPE:3, SPIKE:4, LAVA:5,
+  CHAIN:6, CONVEYOR_L:7, CONVEYOR_R:8, VANISH:9
+};
+
+// ── Palette ────────────────────────────────────────────────────────────
+const P={
+  bg:'#000014',
+  wall:'#8B3A00',wallTop:'#C0601A',wallShade:'#5C2000',
+  brick1:'#7A3200',brick2:'#6A2800',
+  ladder:'#DAA520',ladderSide:'#996600',
+  rope:'#8B6914',
+  chain:'#AAAAAA',
+  spike:'#CC0000',
+  lava1:'#FF2200',lava2:'#FF6600',
+  pedro:'#FF4500',
+  hat:'#1A1A2E',
+  skin:'#FFB347',
+  pants:'#4466AA',
+  skull:'#E8E8E8',skullEye:'#111',
+  spider:'#CC00AA',
+  snake:'#00AA44',
+  key:'#FFD700',
+  gem:'#00FFFF',gemShine:'rgba(255,255,255,0.5)',
+  sword:'#C0C0C0',
+  torch:'#FF8C00',
+  door:'#FF6600',doorDark:'#993300',
+  star:'rgba(255,255,255,0.6)',
+  conveyorL:'#224422',conveyorR:'#224422',
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  ROOM DEFINITIONS
+//  Each room: { name, map[15][20], items[], enemies[], doors[] }
+//  doors: {side:'left'|'right'|'top'|'bottom', toRoom, toX, toY}
+// ═══════════════════════════════════════════════════════════════════════
+
+// Tile shorthand
+const _=T.EMPTY,W1=T.WALL,La=T.LADDER,Ro=T.ROPE,Sp=T.SPIKE,Lv=T.LAVA,
+      Ch=T.CHAIN,CL=T.CONVEYOR_L,CR=T.CONVEYOR_R,Va=T.VANISH;
+
+const ROOMS = [
+// ── Room 0: The Entrance ──────────────────────────────────────────────
+{
+  name:'THE ENTRANCE',
+  bg:'#000014',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _, _, _, _,W1,W1,W1, _, _, _, _,W1,W1,W1, _, _, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _,La, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _, _,W1,W1,W1, _, _, _,La, _, _,W1,W1,W1, _, _, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _,La, _, _, _, _, _, _,Ro,Ro,Ro, W1],
+    [W1,W1,W1, _, _, _, _, _, _,La, _, _, _, _,W1,W1, _, _, _, W1],
+    [W1, _, _, _, _,W1,W1, _, _,La, _,W1,W1, _, _, _, _, _, _, W1],
+    [W1, _, _,La, _, _, _, _, _,La, _, _, _, _, _, _,La, _, _, W1],
+    [W1,W1,W1,La,W1, _, _, _, _, _, _, _, _,W1, _,W1,La,W1,W1,W1],
+    [W1, _, _,La, _, _, _,Sp,Sp,Sp,Sp,Sp, _, _, _,W1,La, _, _, W1],
+    [W1, _, _,La, _, _, _, _, _, _, _, _, _, _, _,W1,La, _, _, W1],
+    [W1, _,W1,W1,W1,W1, _, _, _, _, _, _,W1,W1,W1,W1, _, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,W1],
+  ],
+  items:[
+    {type:'key',  tx:4,  ty:1},
+    {type:'gem',  tx:12, ty:1},
+    {type:'gem',  tx:2,  ty:4},
+    {type:'gem',  tx:16, ty:4},
+    {type:'key',  tx:5,  ty:7},
+    {type:'gem',  tx:11, ty:7},
+    {type:'torch',tx:4,  ty:11},
+    {type:'gem',  tx:13, ty:11},
+    {type:'sword',tx:17, ty:5},
+  ],
+  enemies:[
+    {type:'skull', x:6*TS, y:9*TS-24, vx:1.2},
+    {type:'skull', x:14*TS,y:9*TS-24, vx:-1.2},
+  ],
+  exits:[
+    {side:'right', toRoom:1, toX:1*TS+4,   toY:12*TS-28},
+    {side:'left',  toRoom:2, toX:17*TS+4,  toY:12*TS-28},
+    {side:'top',   toRoom:3, toX:9*TS+4,   toY:13*TS-28, tx:9, ty:0},
+  ],
+  door:{tx:18,ty:1,needsKey:true,toRoom:4,toX:2*TS,toY:12*TS-28},
+},
+// ── Room 1: The Rope Chamber ──────────────────────────────────────────
+{
+  name:'THE ROPE CHAMBER',
+  bg:'#00001A',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1, _, _, _, _,Ro,Ro,Ro, _, _, _,W1,W1, _, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,La, _, W1],
+    [W1, _, _,W1,W1,W1,W1, _, _, _, _, _,W1,W1,W1, _, _,La, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,Ro,La,Ro, W1],
+    [W1,W1,W1,W1, _, _, _, _, _, _, _, _, _, _,W1,W1, _, La, _, W1],
+    [W1, _, _, _, _, _, _, _,La, _, _, _, _, _, _, _, _,La, _, W1],
+    [W1, _, _,W1,W1, _, _, _,La, _, _, _, _,W1,W1, _, _,La, _, W1],
+    [W1,W1,W1, _, _,W1,W1, _,La, _,W1,W1, _, _,W1,W1, _,La,W1,W1],
+    [W1, _, _, _, _, _, _,Sp,Sp,Sp,Sp,Sp, _, _, _, _, _,La, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,La, _, W1],
+    [W1,W1,W1,W1,W1, _, _, _, _, _, _, _,W1,W1,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,W1],
+  ],
+  items:[
+    {type:'gem',  tx:3,  ty:1},
+    {type:'gem',  tx:16, ty:1},
+    {type:'key',  tx:9,  ty:2},
+    {type:'gem',  tx:4,  ty:4},
+    {type:'gem',  tx:14, ty:4},
+    {type:'gem',  tx:4,  ty:8},
+    {type:'gem',  tx:13, ty:8},
+    {type:'torch',tx:9,  ty:11},
+  ],
+  enemies:[
+    {type:'spider', x:9*TS, y:2*TS, vy:1.5, minY:2*TS, maxY:8*TS},
+    {type:'skull',  x:5*TS, y:9*TS-24, vx:1.0},
+  ],
+  exits:[
+    {side:'left', toRoom:0, toX:17*TS+4, toY:12*TS-28},
+    {side:'top',  toRoom:5, toX:9*TS+4,  toY:13*TS-28, tx:9,ty:0},
+  ],
+  door:null,
+},
+// ── Room 2: The Abyss ─────────────────────────────────────────────────
+{
+  name:'THE ABYSS',
+  bg:'#0A000A',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1, _, _, _, _, _, _, _, _, _,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _,La, _, _, _, _, _,La, _, _, _, _, _, _, W1],
+    [W1,W1,W1, _, _, _,La, _, _,W1,W1, _,La, _, _, _,W1,W1,W1,W1],
+    [W1, _, _, _, _, _,La, _, _, _, _, _,La, _, _, _, _, _, _, W1],
+    [W1, _,Ro,Ro,Ro,Ro,La,Ro,Ro, _, _,Ro,La,Ro,Ro,Ro, _, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1, _, _, _, _,W1,W1,W1, _, _, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,Sp,Sp,Sp,Sp,Sp,Sp,Sp,Sp,W1,W1,W1, _, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1, _, _, _,W1,W1, _, _, _, _,W1,W1, _, _,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,W1],
+  ],
+  items:[
+    {type:'key',  tx:4,  ty:1},
+    {type:'gem',  tx:15, ty:1},
+    {type:'gem',  tx:6,  ty:3},
+    {type:'gem',  tx:12, ty:3},
+    {type:'sword',tx:9,  ty:6},
+    {type:'gem',  tx:3,  ty:9},
+    {type:'gem',  tx:15, ty:9},
+    {type:'torch',tx:9,  ty:13},
+  ],
+  enemies:[
+    {type:'snake', x:8*TS, y:8*TS-16, vx:1.0},
+    {type:'skull', x:3*TS, y:12*TS-24, vx:1.3},
+    {type:'skull', x:14*TS,y:12*TS-24, vx:-1.3},
+  ],
+  exits:[
+    {side:'right',toRoom:0, toX:1*TS+4, toY:12*TS-28},
+    {side:'top',  toRoom:6, toX:9*TS+4, toY:13*TS-28, tx:9,ty:0},
+  ],
+  door:null,
+},
+// ── Room 3: The Upper Temple ──────────────────────────────────────────
+{
+  name:'THE UPPER TEMPLE',
+  bg:'#000A00',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1, _, _, _, _, _, _, _, _, _, _, _,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _,La, _, _, _, _, _,La, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1, _, _,La, _, _,W1,W1, _,La, _, _,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _,La, _, _, _, _, _,La, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1, _,La, _, _, _, _, _,La, _,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _,La, _, _,Ro,Ro, _,La, _, _, _, _, _, _, W1],
+    [W1,W1,W1, _, _, _,La, _, _, _, _, _,La, _, _,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,W1,W1,W1, _, _, _,W1,W1,W1,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1,W1, _, _, _, _, _, _, _, _, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1, _,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+  ],
+  items:[
+    {type:'gem',  tx:3,  ty:1},
+    {type:'gem',  tx:16, ty:1},
+    {type:'key',  tx:9,  ty:3},
+    {type:'gem',  tx:4,  ty:5},
+    {type:'gem',  tx:14, ty:5},
+    {type:'torch',tx:9,  ty:7},
+    {type:'gem',  tx:4,  ty:9},
+    {type:'gem',  tx:14, ty:9},
+    {type:'gem',  tx:9,  ty:11},
+  ],
+  enemies:[
+    {type:'spider', x:6*TS,  y:3*TS, vy:1.2, minY:2*TS, maxY:8*TS},
+    {type:'spider', x:12*TS, y:5*TS, vy:1.5, minY:2*TS, maxY:8*TS},
+    {type:'skull',  x:4*TS,  y:13*TS-24, vx:1.2},
+  ],
+  exits:[
+    {side:'bottom', toRoom:0, toX:9*TS+4, toY:1*TS, tx:9, ty:14},
+    {side:'right',  toRoom:7, toX:1*TS+4, toY:12*TS-28},
+    {side:'left',   toRoom:8, toX:18*TS+4,toY:12*TS-28},
+  ],
+  door:null,
+},
+// ── Room 4: The Vault ─────────────────────────────────────────────────
+{
+  name:'THE VAULT',
+  bg:'#0A0800',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,W1,W1, _, _, _, _, _,W1,W1,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _, _,La, _, _,La, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1, _, _, _, _,La, _, _,La, _, _, _,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _,La, _, _,La, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,W1, _, _,La, _, _,La, _, _,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _, _,La, _, _,La, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1,W1, _, _, _,La, _, _,La, _, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _,Ro,Ro,Ro,Ro,Ro,Ro,Ro, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1, _, _, _, _, _, _, _, _, _,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _,Sp,Sp,Sp,Sp,Sp,Sp,Sp,Sp,Sp, _, _, _, _, _, W1],
+    [W1,W1,W1,W1, _, _, _, _, _, _, _, _, _, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,W1],
+  ],
+  items:[
+    {type:'gem',  tx:9, ty:1},
+    {type:'gem',  tx:4, ty:3},
+    {type:'gem',  tx:14,ty:3},
+    {type:'key',  tx:9, ty:5},
+    {type:'gem',  tx:4, ty:7},
+    {type:'gem',  tx:14,ty:7},
+    {type:'sword',tx:9, ty:9},
+    {type:'gem',  tx:4, ty:13},
+    {type:'gem',  tx:14,ty:13},
+    {type:'torch',tx:9, ty:13},
+  ],
+  enemies:[
+    {type:'skull', x:4*TS,  y:4*TS-24, vx:1.5},
+    {type:'skull', x:14*TS, y:8*TS-24, vx:-1.5},
+    {type:'spider',x:8*TS,  y:3*TS,   vy:1.8,minY:2*TS,maxY:7*TS},
+  ],
+  exits:[
+    {side:'left', toRoom:0, toX:18*TS+4, toY:1*TS},
+    {side:'right',toRoom:9, toX:1*TS+4,  toY:12*TS-28},
+  ],
+  door:null,
+},
+// ── Room 5: The Bridge ────────────────────────────────────────────────
+{
+  name:'THE BRIDGE',
+  bg:'#000010',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1, _, _, _, _, _, _, _, _, _,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _,Ro,Ro,Ro,Ro,Ro,Ro,Ro,Ro,Ro, _, _, _, _, _, W1],
+    [W1,W1,W1, _, _, _, _, _, _, _, _, _, _, _, _, _,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _,La, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,W1, _, _, _,La, _, _,W1,W1,W1,W1, _, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _,La, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1, _,W1,W1, _, _,La, _,W1,W1, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _,La, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1, _,Sp,Sp,Sp,Sp,Sp,Sp,Sp, _,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1,W1, _, _, _, _, _, _, _, _, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1, _,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+  ],
+  items:[
+    {type:'gem',  tx:3,  ty:1},
+    {type:'gem',  tx:16, ty:1},
+    {type:'key',  tx:9,  ty:3},
+    {type:'gem',  tx:4,  ty:5},
+    {type:'gem',  tx:14, ty:5},
+    {type:'gem',  tx:4,  ty:7},
+    {type:'gem',  tx:14, ty:7},
+    {type:'torch',tx:9,  ty:11},
+  ],
+  enemies:[
+    {type:'skull', x:4*TS, y:8*TS-24, vx:1.1},
+    {type:'skull', x:14*TS,y:8*TS-24, vx:-1.1},
+    {type:'snake', x:3*TS, y:4*TS-16, vx:0.9},
+  ],
+  exits:[
+    {side:'bottom',toRoom:1, toX:9*TS+4, toY:1*TS,    tx:9,ty:14},
+    {side:'right', toRoom:6, toX:1*TS+4, toY:12*TS-28},
+    {side:'left',  toRoom:7, toX:18*TS+4,toY:12*TS-28},
+  ],
+  door:null,
+},
+// ── Room 6: The Spider Lair ───────────────────────────────────────────
+{
+  name:'THE SPIDER LAIR',
+  bg:'#080008',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1, _, _, _,Ch, _, _, _, _,Ch, _, _, _,W1,W1, _, W1],
+    [W1, _, _, _, _, _, _,Ch, _, _, _, _,Ch, _, _, _, _, _, _, W1],
+    [W1,W1,W1, _, _, _, _,Ch, _, _,W1, _,Ch, _, _, _,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _,Ch, _, _, _, _,Ch, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1, _, _,Ch, _, _, _, _,Ch, _, _,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _,Ch, _, _, _, _,Ch, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1, _, _, _,Ch, _, _, _, _,Ch, _, _,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,W1,W1, _,Sp,Sp,Sp,Sp, _,W1,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1,W1, _, _, _, _, _, _, _, _, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,W1,W1],
+  ],
+  items:[
+    {type:'gem',  tx:3,  ty:1},
+    {type:'gem',  tx:16, ty:1},
+    {type:'gem',  tx:4,  ty:3},
+    {type:'gem',  tx:14, ty:3},
+    {type:'key',  tx:9,  ty:5},
+    {type:'gem',  tx:4,  ty:7},
+    {type:'gem',  tx:14, ty:7},
+    {type:'sword',tx:9,  ty:9},
+  ],
+  enemies:[
+    {type:'spider',x:7*TS, y:1*TS, vy:1.3,minY:1*TS,maxY:9*TS},
+    {type:'spider',x:11*TS,y:3*TS, vy:1.6,minY:1*TS,maxY:9*TS},
+    {type:'skull', x:5*TS, y:12*TS-24,vx:1.4},
+  ],
+  exits:[
+    {side:'bottom',toRoom:2, toX:9*TS+4,  toY:1*TS,    tx:9,ty:14},
+    {side:'left',  toRoom:5, toX:18*TS+4, toY:12*TS-28},
+    {side:'right', toRoom:9, toX:1*TS+4,  toY:12*TS-28},
+  ],
+  door:null,
+},
+// ── Room 7: The Conveyor Hall ─────────────────────────────────────────
+{
+  name:'THE CONVEYOR HALL',
+  bg:'#000A08',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,CR,CR,CR,CR, _, _, _, _, _, _, _, _,CL,CL,CL,CL, _, W1],
+    [W1, _, _, _, _, _, _,La, _, _, _, _,La, _, _, _, _, _, _, W1],
+    [W1,W1,W1, _,CR,CR,CR,La,CR, _,CL,La,CL,CL,CL, _,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _,La, _, _, _, _,La, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1, _, _, _,La, _, _, _, _,La, _, _,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _,La, _, _, _, _,La, _, _, _, _, _, _, W1],
+    [W1,W1,W1, _,CL,CL,CL,La,CL, _,CR,La,CR,CR,CR, _,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _,La, _, _, _, _,La, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,W1, _,La,Sp,Sp,Sp,Sp,La, _,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _,La, _, _, _, _,La, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1,W1, _, _,La, _, _, _, _,La, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,W1],
+  ],
+  items:[
+    {type:'gem',  tx:4,  ty:1},
+    {type:'gem',  tx:14, ty:1},
+    {type:'key',  tx:9,  ty:3},
+    {type:'gem',  tx:4,  ty:5},
+    {type:'gem',  tx:14, ty:5},
+    {type:'gem',  tx:4,  ty:7},
+    {type:'gem',  tx:14, ty:7},
+    {type:'torch',tx:9,  ty:13},
+  ],
+  enemies:[
+    {type:'skull', x:4*TS, y:4*TS-24, vx:1.2},
+    {type:'skull', x:14*TS,y:8*TS-24, vx:-1.2},
+    {type:'snake', x:8*TS, y:12*TS-16,vx:1.0},
+  ],
+  exits:[
+    {side:'right',toRoom:3,  toX:1*TS+4,  toY:12*TS-28},
+    {side:'left', toRoom:5,  toX:18*TS+4, toY:12*TS-28},
+    {side:'top',  toRoom:9,  toX:9*TS+4,  toY:13*TS-28, tx:9,ty:0},
+  ],
+  door:null,
+},
+// ── Room 8: The Mirror ────────────────────────────────────────────────
+{
+  name:'THE MIRROR HALLS',
+  bg:'#050010',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1, _, _, _, _,Ro,Ro, _, _, _, _,W1,W1,W1, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1, _, _, _,W1,W1, _, _, _,W1,W1, _, _,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1, _, _, _, _,Ro,Ro,Ro, _, _, _,W1,W1, _, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1, _, _,W1,W1, _, _, _,W1,W1, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,Sp,Sp,Sp, _, _, _,Sp,Sp,Sp,W1,W1,W1, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1,W1, _, _, _, _, _, _, _, _, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,W1],
+  ],
+  items:[
+    {type:'key',  tx:4,  ty:1},
+    {type:'gem',  tx:14, ty:1},
+    {type:'gem',  tx:9,  ty:3},
+    {type:'gem',  tx:4,  ty:5},
+    {type:'gem',  tx:14, ty:5},
+    {type:'gem',  tx:9,  ty:7},
+    {type:'torch',tx:4,  ty:9},
+    {type:'gem',  tx:14, ty:9},
+  ],
+  enemies:[
+    {type:'skull', x:3*TS, y:4*TS-24, vx:1.3},
+    {type:'skull', x:15*TS,y:8*TS-24, vx:-1.3},
+    {type:'snake', x:9*TS, y:12*TS-16,vx:1.2},
+    {type:'spider',x:9*TS, y:2*TS,   vy:1.4,minY:2*TS,maxY:8*TS},
+  ],
+  exits:[
+    {side:'right',toRoom:3,  toX:18*TS+4, toY:12*TS-28},
+    {side:'top',  toRoom:3,  toX:3*TS+4,  toY:12*TS-28, tx:9,ty:0},
+  ],
+  door:null,
+},
+// ── Room 9: The Treasure Chamber ─────────────────────────────────────
+{
+  name:'THE TREASURE CHAMBER',
+  bg:'#0A0800',
+  map:[
+    [W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,W1,W1,W1,W1, _, _,W1,W1,W1,W1,W1,W1,W1, _, W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1,W1, _, _, _, _, _, _, _, _, _, _, _,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _,La, _, _, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1, _, _, _, _, _,La, _, _, _, _,W1,W1, _, _, _, W1],
+    [W1, _, _, _, _, _, _, _, _,La, _, _, _, _, _, _, _, _, _, W1],
+    [W1,W1,W1, _, _, _, _, _, _,La, _, _, _, _, _, _,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _,Ro,Ro,Ro,Ro,Ro, _, _, _, _, _, _, _, W1],
+    [W1, _,W1,W1,W1,W1, _, _, _, _, _, _, _,W1,W1,W1, _, _, _, W1],
+    [W1, _, _, _, _,Sp,Sp,Sp,Sp,Sp,Sp,Sp,Sp,Sp, _, _, _, _, _, W1],
+    [W1,W1,W1,W1, _, _, _, _, _, _, _, _, _, _,W1,W1,W1,W1,W1,W1],
+    [W1, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W1],
+    [W1,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,Lv,W1],
+  ],
+  items:[
+    {type:'gem',  tx:4,  ty:1},
+    {type:'gem',  tx:14, ty:1},
+    {type:'gem',  tx:9,  ty:1},
+    {type:'key',  tx:4,  ty:3},
+    {type:'key',  tx:14, ty:3},
+    {type:'gem',  tx:4,  ty:5},
+    {type:'gem',  tx:14, ty:5},
+    {type:'gem',  tx:4,  ty:7},
+    {type:'gem',  tx:14, ty:7},
+    {type:'sword',tx:9,  ty:9},
+    {type:'gem',  tx:4,  ty:13},
+    {type:'gem',  tx:14, ty:13},
+    {type:'gem',  tx:9,  ty:13},
+  ],
+  enemies:[
+    {type:'skull', x:3*TS,  y:4*TS-24, vx:1.5},
+    {type:'skull', x:15*TS, y:4*TS-24, vx:-1.5},
+    {type:'skull', x:9*TS,  y:8*TS-24, vx:1.2},
+    {type:'spider',x:9*TS,  y:2*TS,   vy:2.0,minY:1*TS,maxY:7*TS},
+    {type:'snake', x:4*TS,  y:12*TS-16,vx:1.3},
+  ],
+  exits:[
+    {side:'left',  toRoom:4,  toX:18*TS+4, toY:12*TS-28},
+    {side:'right', toRoom:6,  toX:1*TS+4,  toY:12*TS-28},
+    {side:'bottom',toRoom:7,  toX:9*TS+4,  toY:1*TS,    tx:9,ty:14},
+  ],
+  door:{tx:9,ty:0,needsKey:true,toRoom:0,toX:9*TS+4,toY:2*TS, isFinal:true},
+},
+];
+
+// ═══════════════════════════════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════════════════════════════
+let gState = 'title'; // title | playing | dead | win | gameover
+let frame = 0;
+let score = 0;
+let hiScore = 0;
+let lives = 3;
+let keys_inv = 0;
+let gems_inv = 0;
+let swords_inv = 0;
+let torches_inv = 0;
+let swordActive = false;
+let swordTimer = 0;
+let currentRoom = 0;
+let roomItemStates = {}; // {roomIdx: [bool,bool,...]}
+let player, enemies, roomItems;
+let deathTimer = 0;
+let winTimer = 0;
+let flashMsg = '';
+let flashTimer = 0;
+let conveyorOffset = 0;
+
+// ─── Player ───────────────────────────────────────────────────────────
+function makePlayer(x, y){
+  return {
+    x, y, w:22, h:28,
+    vx:0, vy:0,
+    onGround:false, onLadder:false, onRope:false,
+    ropeY:0,
+    facingRight:true,
+    dead:false,
+    animFrame:0,
+    blinkTimer:0,
+    invTimer:0, // invincibility after respawn
+  };
+}
+
+// ─── Projectile (thrown sword) ────────────────────────────────────────
+let projectile = null;
+
+// ─── Init room ────────────────────────────────────────────────────────
+function initRoom(roomIdx, px, py){
+  currentRoom = roomIdx;
+  const room = ROOMS[roomIdx];
+
+  // Item states
+  if(!roomItemStates[roomIdx]){
+    roomItemStates[roomIdx] = room.items.map(()=>false);
+  }
+  roomItems = room.items.map((it,i)=>({...it, collected: roomItemStates[roomIdx][i]}));
+
+  // Enemies (fresh each entry)
+  enemies = room.enemies.map(e=>({
+    ...e,
+    alive: true,
+    stunTimer: 0,
+    animFrame: 0,
+    origX: e.x,
+    onGround: false,
+  }));
+
+  projectile = null;
+
+  if(!player) player = makePlayer(px, py);
+  else { player.x=px; player.y=py; player.vx=0; player.vy=0; player.dead=false;
+         player.onGround=false; player.onLadder=false; player.onRope=false; player.invTimer=90; }
+}
+
+function startGame(){
+  score=0; lives=3; keys_inv=0; gems_inv=0; swords_inv=0; torches_inv=0;
+  swordActive=false; swordTimer=0;
+  roomItemStates={};
+  player = makePlayer(1*TS+4, 12*TS-28);
+  initRoom(0, 1*TS+4, 12*TS-28);
+  gState='playing';
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  TILE HELPERS
+// ═══════════════════════════════════════════════════════════════════════
+function mapAt(tx,ty){
+  const m = ROOMS[currentRoom].map;
+  if(tx<0||tx>=20||ty<0||ty>=15) return T.WALL;
+  return m[ty][tx];
+}
+function tileAt(px,py){ return mapAt(Math.floor(px/TS), Math.floor(py/TS)); }
+function isSolid(t){ return t===T.WALL; }
+function isLadder(t){ return t===T.LADDER; }
+function isRope(t){ return t===T.ROPE; }
+function isChain(t){ return t===T.CHAIN; }
+function isSpike(t){ return t===T.SPIKE; }
+function isLava(t){ return t===T.LAVA; }
+function isConveyor(t){ return t===T.CONVEYOR_L||t===T.CONVEYOR_R; }
+function isClimbable(t){ return isLadder(t)||isChain(t); }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PHYSICS / COLLISION
+// ═══════════════════════════════════════════════════════════════════════
+function resolveEntityX(e){
+  const margin=3;
+  if(e.vx<0){
+    if(isSolid(tileAt(e.x,         e.y+margin))||
+       isSolid(tileAt(e.x,         e.y+e.h-margin))){
+      e.x = Math.floor(e.x/TS)*TS+TS;
+      e.vx=0;
+      return true;
+    }
+  } else if(e.vx>0){
+    if(isSolid(tileAt(e.x+e.w,     e.y+margin))||
+       isSolid(tileAt(e.x+e.w,     e.y+e.h-margin))){
+      e.x = Math.floor((e.x+e.w)/TS)*TS - e.w;
+      e.vx=0;
+      return true;
+    }
+  }
+  return false;
+}
+
+function resolveEntityY(e){
+  e.onGround=false;
+  if(e.vy<0){
+    if(isSolid(tileAt(e.x+3,       e.y))||
+       isSolid(tileAt(e.x+e.w-3,   e.y))){
+      e.y = Math.floor(e.y/TS)*TS+TS;
+      e.vy=0;
+    }
+  }
+  if(e.vy>=0){
+    const fy=e.y+e.h;
+    if(isSolid(tileAt(e.x+3,     fy))||
+       isSolid(tileAt(e.x+e.w-3, fy))){
+      e.y = Math.floor(fy/TS)*TS - e.h;
+      e.vy=0;
+      e.onGround=true;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  INPUT
+// ═══════════════════════════════════════════════════════════════════════
+const keysDown={};
+const keysJustPressed={};
+window.addEventListener('keydown',e=>{
+  if(!keysDown[e.code]){ keysJustPressed[e.code]=true; }
+  keysDown[e.code]=true;
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+});
+window.addEventListener('keyup',e=>{ keysDown[e.code]=false; });
+function clearJust(){ for(let k in keysJustPressed) delete keysJustPressed[k]; }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PLAYER UPDATE
+// ═══════════════════════════════════════════════════════════════════════
+function updatePlayer(){
+  if(player.dead){ return; }
+  if(player.invTimer>0) player.invTimer--;
+
+  const cx = player.x + player.w/2;
+  const topT  = tileAt(cx, player.y);
+  const midT  = tileAt(cx, player.y+player.h/2);
+  const footT = tileAt(cx, player.y+player.h-1);
+
+  // Rope grab
+  if(!player.onRope && (isRope(topT)||isRope(midT))){
+    if(keysJustPressed['ArrowUp']||keysJustPressed['Space']){
+      player.onRope=true;
+      player.ropeY = Math.floor(player.y/TS)*TS+2;
+      player.vy=0;
+    }
+  }
+  if(player.onRope && !isRope(tileAt(cx,player.ropeY+4))) player.onRope=false;
+
+  // Ladder/Chain
+  const climbNow = isClimbable(midT)||isClimbable(footT)||isClimbable(topT);
+  if(!climbNow) player.onLadder=false;
+  if(climbNow && !player.onGround && (keysDown['ArrowUp']||keysDown['ArrowDown']))
+    player.onLadder=true;
+
+  // Sword throw
+  if(keysJustPressed['KeyX'] && swords_inv>0 && !projectile){
+    sfxSword();
+    swords_inv--;
+    projectile={
+      x: player.facingRight? player.x+player.w : player.x-16,
+      y: player.y+8,
+      w:16, h:8,
+      vx: player.facingRight? 8:-8,
+      vy:0, alive:true
+    };
+    updateHUD();
+  }
+
+  // Movement
+  if(player.onRope){
+    player.vy=0;
+    player.y=player.ropeY;
+    player.vx=0;
+    if(keysDown['ArrowLeft']){  player.vx=-2.5; player.onRope=false; }
+    if(keysDown['ArrowRight']){ player.vx= 2.5; player.onRope=false; }
+    if(keysDown['ArrowDown'])   player.onRope=false;
+  } else if(player.onLadder){
+    player.vx=0; player.vy=0;
+    if(keysDown['ArrowUp'])   player.vy=-2.8;
+    if(keysDown['ArrowDown']) player.vy= 2.8;
+    if(keysDown['ArrowLeft']){ player.vx=-2.5; player.onLadder=false; }
+    if(keysDown['ArrowRight']){player.vx= 2.5; player.onLadder=false; }
+    if((keysJustPressed['Space']||keysJustPressed['ArrowUp']) && player.onGround){
+      player.vy=-9; player.onLadder=false;
+    }
+  } else {
+    player.vx=0;
+    if(keysDown['ArrowLeft']){  player.vx=-3.2; player.facingRight=false; }
+    if(keysDown['ArrowRight']){ player.vx= 3.2; player.facingRight=true; }
+    // Jump
+    if((keysJustPressed['Space']||keysJustPressed['ArrowUp']) && player.onGround){
+      player.vy=-10; player.onGround=false; sfxJump();
+    }
+    // Gravity
+    player.vy = Math.min(player.vy+0.5, 15);
+  }
+
+  // Conveyor
+  if(player.onGround){
+    const bt = tileAt(cx, player.y+player.h+1);
+    if(bt===T.CONVEYOR_L) player.vx -= 1.2;
+    if(bt===T.CONVEYOR_R) player.vx += 1.2;
+  }
+
+  // Move
+  player.x += player.vx;
+  const hitWallX = resolveEntityX(player);
+  if(hitWallX && player.onRope) player.onRope=false;
+  player.y += player.vy;
+  resolveEntityY(player);
+
+  // Hazards
+  const fm = tileAt(cx, player.y+player.h);
+  if(isSpike(fm) || isLava(fm) || isSpike(tileAt(cx,player.y+player.h-2))){ killPlayer(); return; }
+  if(player.y > H+80){ killPlayer(); return; }
+
+  // Room transitions
+  checkRoomTransition();
+
+  // Collect items
+  for(let i=0;i<roomItems.length;i++){
+    const it=roomItems[i];
+    if(it.collected) continue;
+    const ix=it.tx*TS+TS/2, iy=it.ty*TS+TS/2;
+    const dx=(player.x+player.w/2)-ix, dy=(player.y+player.h/2)-iy;
+    if(Math.abs(dx)<20&&Math.abs(dy)<20){
+      it.collected=true;
+      roomItemStates[currentRoom][i]=true;
+      collectItem(it.type);
+    }
+  }
+
+  // Door
+  const room=ROOMS[currentRoom];
+  if(room.door && !room.door.collected){
+    const d=room.door;
+    const dx=(player.x+player.w/2)-(d.tx*TS+TS/2);
+    const dy=(player.y+player.h/2)-(d.ty*TS+TS/2);
+    if(Math.abs(dx)<24&&Math.abs(dy)<24){
+      if(keys_inv>0){
+        d.collected=true; keys_inv--;
+        sfxDoor(); score+=5000; updateHUD();
+        if(d.isFinal){ gState='win'; winTimer=200; sfxWin(); return; }
+        showFlash('DOOR OPENED!');
+        setTimeout(()=>{ initRoom(d.toRoom, d.toX, d.toY); },400);
+      } else {
+        showFlash('NEED A KEY!');
+      }
+    }
+  }
+
+  // Enemy collisions
+  if(player.invTimer===0){
+    for(const en of enemies){
+      if(!en.alive||en.stunTimer>0) continue;
+      const edx=(player.x+player.w/2)-(en.x+(en.w||24)/2);
+      const edy=(player.y+player.h/2)-(en.y+(en.h||24)/2);
+      if(Math.abs(edx)<20&&Math.abs(edy)<20){
+        killPlayer(); return;
+      }
+    }
+  }
+
+  // Anim
+  if(player.onGround && Math.abs(player.vx)>0.5) player.animFrame = Math.floor(frame/6)%4;
+  else if(!player.onGround) player.animFrame=1;
+}
+
+function collectItem(type){
+  switch(type){
+    case 'key':   keys_inv++;   score+=3000; sfxKey();     showFlash('+3000  KEY!'); break;
+    case 'gem':   gems_inv++;   score+=100;  sfxCollect(); showFlash('+100  GEM!'); break;
+    case 'sword': swords_inv++; score+=500;  sfxCollect(); showFlash('+500  SWORD!'); break;
+    case 'torch': torches_inv++;score+=200;  sfxCollect(); showFlash('+200  TORCH!'); break;
+  }
+  updateHUD();
+}
+
+function checkRoomTransition(){
+  const room=ROOMS[currentRoom];
+  for(const exit of room.exits){
+    let triggered=false, nx=0,ny=0,nr=0;
+    if(exit.side==='right'  && player.x+player.w >= W-2)   { triggered=true; }
+    if(exit.side==='left'   && player.x <= 2)              { triggered=true; }
+    if(exit.side==='bottom' && player.y >= H-4){
+      // must be at correct tx
+      if(exit.tx!==undefined){
+        const cx=Math.floor((player.x+player.w/2)/TS);
+        if(cx!==exit.tx) continue;
+      }
+      triggered=true;
+    }
+    if(exit.side==='top' && player.y<=2){
+      triggered=true;
+    }
+    if(triggered){
+      initRoom(exit.toRoom, exit.toX, exit.toY);
+      return;
+    }
+  }
+}
+
+function killPlayer(){
+  if(player.dead||player.invTimer>0) return;
+  player.dead=true;
+  player.vy=-8; player.vx=0;
+  sfxDie();
+  deathTimer=120;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  ENEMY UPDATE
+// ═══════════════════════════════════════════════════════════════════════
+function updateEnemies(){
+  for(const en of enemies){
+    if(!en.alive) continue;
+    en.animFrame=Math.floor(frame/8)%2;
+
+    if(en.stunTimer>0){ en.stunTimer--; continue; }
+
+    if(en.type==='skull'){
+      en.vy = Math.min((en.vy||0)+0.45, 12);
+      en.x += en.vx;
+      en.y += en.vy;
+      // wall bounce
+      const hitL = isSolid(tileAt(en.x,      en.y+12));
+      const hitR = isSolid(tileAt(en.x+24,   en.y+12));
+      if(hitL){ en.vx=Math.abs(en.vx); en.x+=4; }
+      if(hitR){ en.vx=-Math.abs(en.vx); en.x-=4; }
+      // floor
+      if(isSolid(tileAt(en.x+12, en.y+24))){
+        en.y = Math.floor((en.y+24)/TS)*TS-24;
+        en.vy=0; en.onGround=true;
+      }
+      // edge reversal
+      if(en.onGround){
+        if(!isSolid(tileAt(en.x-2,   en.y+26)) && en.vx<0) en.vx=Math.abs(en.vx);
+        if(!isSolid(tileAt(en.x+26,  en.y+26)) && en.vx>0) en.vx=-Math.abs(en.vx);
+      }
+      if(isLava(tileAt(en.x+12,en.y+24))) en.alive=false;
+    }
+
+    if(en.type==='spider'){
+      en.y += en.vy;
+      if(en.y<=en.minY){ en.vy=Math.abs(en.vy); }
+      if(en.y>=en.maxY){ en.vy=-Math.abs(en.vy); }
+    }
+
+    if(en.type==='snake'){
+      en.x += en.vx;
+      if(isSolid(tileAt(en.x,      en.y+8))  && en.vx<0){ en.vx=Math.abs(en.vx); }
+      if(isSolid(tileAt(en.x+24,   en.y+8))  && en.vx>0){ en.vx=-Math.abs(en.vx); }
+      if(!isSolid(tileAt(en.x-2,   en.y+18)) && en.vx<0){ en.vx=Math.abs(en.vx); }
+      if(!isSolid(tileAt(en.x+26,  en.y+18)) && en.vx>0){ en.vx=-Math.abs(en.vx); }
+    }
+  }
+}
+
+// ─── Projectile ───────────────────────────────────────────────────────
+function updateProjectile(){
+  if(!projectile||!projectile.alive) return;
+  projectile.x += projectile.vx;
+  if(isSolid(tileAt(projectile.x,projectile.y))||
+     isSolid(tileAt(projectile.x+projectile.w,projectile.y))||
+     projectile.x<0||projectile.x>W){
+    projectile.alive=false; return;
+  }
+  for(const en of enemies){
+    if(!en.alive) continue;
+    const edx=(en.x+(en.w||24)/2)-(projectile.x+8);
+    const edy=(en.y+(en.h||24)/2)-(projectile.y+4);
+    if(Math.abs(edx)<20&&Math.abs(edy)<20){
+      en.alive=false; projectile.alive=false;
+      score+=500; updateHUD(); sfxSword(); showFlash('+500  KILL!');
+      break;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  HUD
+// ═══════════════════════════════════════════════════════════════════════
+function updateHUD(){
+  document.getElementById('hLives').textContent  = lives;
+  document.getElementById('hScore').textContent  = String(score).padStart(6,'0');
+  document.getElementById('hKeys').textContent   = keys_inv;
+  document.getElementById('hGems').textContent   = gems_inv;
+  document.getElementById('hSwords').textContent = swords_inv;
+  document.getElementById('hTorch').textContent  = torches_inv;
+  document.getElementById('hiScore').textContent = String(hiScore).padStart(6,'0');
+  // Life icons
+  const ic=document.getElementById('lives-icons');
+  ic.innerHTML='';
+  for(let i=0;i<Math.max(0,lives);i++){
+    const d=document.createElement('div');d.className='life-icon';ic.appendChild(d);
+  }
+  document.getElementById('room-name').textContent = gState==='playing'?ROOMS[currentRoom].name:'';
+}
+
+function showFlash(msg){
+  flashMsg=msg; flashTimer=90;
+  const el=document.getElementById('msg-flash');
+  el.textContent=msg; el.style.opacity='1';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  DRAWING
+// ═══════════════════════════════════════════════════════════════════════
+function drawTile(tx,ty,t){
+  const x=tx*TS, y=ty*TS;
+  switch(t){
+    case T.WALL:{
+      ctx.fillStyle=P.wall;
+      ctx.fillRect(x,y,TS,TS);
+      // brick highlight top
+      ctx.fillStyle=P.wallTop;
+      ctx.fillRect(x,y,TS,3);
+      // brick left
+      ctx.fillStyle=P.wallShade;
+      ctx.fillRect(x,y+3,2,TS-3);
+      // brick lines
+      ctx.fillStyle=P.brick2;
+      if(ty%2===0){
+        ctx.fillRect(x+TS/2,y+4,1,TS-4);
+      } else {
+        ctx.fillRect(x,y+TS/2,TS,1);
+      }
+      break;
+    }
+    case T.LADDER:{
+      ctx.fillStyle=P.ladderSide;
+      ctx.fillRect(x+9,y,3,TS);
+      ctx.fillRect(x+20,y,3,TS);
+      ctx.fillStyle=P.ladder;
+      for(let i=0;i<3;i++){
+        ctx.fillRect(x+7,y+3+i*11,18,3);
+      }
+      break;
+    }
+    case T.CHAIN:{
+      for(let i=0;i<4;i++){
+        ctx.fillStyle=i%2===0?'#BBBBBB':'#888';
+        ctx.fillRect(x+13,y+i*8,6,8);
+      }
+      break;
+    }
+    case T.ROPE:{
+      ctx.fillStyle=P.rope;
+      ctx.fillRect(x,y+5,TS,5);
+      ctx.fillStyle='#5C3A00';
+      ctx.fillRect(x+7,y+3,4,9);
+      ctx.fillRect(x+21,y+3,4,9);
+      break;
+    }
+    case T.SPIKE:{
+      ctx.fillStyle='#222';
+      ctx.fillRect(x,y+18,TS,TS-18);
+      ctx.fillStyle=P.spike;
+      for(let i=0;i<4;i++){
+        ctx.beginPath();
+        ctx.moveTo(x+4+i*8,y+TS);
+        ctx.lineTo(x+8+i*8,y+16);
+        ctx.lineTo(x+12+i*8,y+TS);
+        ctx.fill();
+      }
+      break;
+    }
+    case T.LAVA:{
+      const pulse=Math.sin(frame*0.12)*18;
+      ctx.fillStyle=`rgb(${220+pulse|0},20,0)`;
+      ctx.fillRect(x,y,TS,TS);
+      // wave
+      ctx.fillStyle=`rgb(255,${60+pulse|0},0)`;
+      const woff=((frame*2+tx*7)%TS);
+      ctx.fillRect(x,y+6,TS,4);
+      ctx.fillRect((x+woff)%W,y+2,6,5);
+      break;
+    }
+    case T.CONVEYOR_L:
+    case T.CONVEYOR_R:{
+      ctx.fillStyle='#2A4A2A';
+      ctx.fillRect(x,y,TS,TS);
+      ctx.fillStyle='#3A6A3A';
+      ctx.fillRect(x,y,TS,3);
+      const dir=t===T.CONVEYOR_L?-1:1;
+      const off=((conveyorOffset*dir)%TS+TS)%TS;
+      ctx.fillStyle='#5A9A5A';
+      for(let i=0;i<3;i++){
+        const bx=(x+off+i*(TS/2))%W;
+        if(bx>=x&&bx<x+TS) ctx.fillRect(bx,y,4,TS);
+      }
+      break;
+    }
+  }
+}
+
+function drawRoom(){
+  // Background
+  ctx.fillStyle=ROOMS[currentRoom].bg||P.bg;
+  ctx.fillRect(0,0,W,H);
+  // Stars
+  ctx.fillStyle=P.star;
+  for(let i=0;i<20;i++){
+    const sx=(i*113+37)%W;
+    const sy=(i*71+13)%(H*0.55);
+    const ss=frame%60<30?1:0;
+    ctx.fillRect(sx,sy,1+ss,1+ss);
+  }
+  // Tiles
+  for(let ty=0;ty<15;ty++){
+    for(let tx=0;tx<20;tx++){
+      const t=mapAt(tx,ty);
+      if(t!==T.EMPTY) drawTile(tx,ty,t);
+    }
+  }
+}
+
+function drawItems(){
+  const bob=Math.sin(frame*0.08)*3;
+  for(const it of roomItems){
+    if(it.collected) continue;
+    const x=it.tx*TS, y=it.ty*TS;
+    switch(it.type){
+      case 'key':{
+        ctx.fillStyle=P.key;
+        ctx.beginPath();
+        ctx.arc(x+16,y+12+bob,8,0,Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle='#AA8800';
+        ctx.fillRect(x+22,y+17+bob,8,4);
+        ctx.fillRect(x+24,y+21+bob,4,4);
+        ctx.fillRect(x+28,y+21+bob,3,3);
+        // shine
+        ctx.fillStyle='rgba(255,255,200,0.5)';
+        ctx.fillRect(x+13,y+8+bob,4,4);
+        break;
+      }
+      case 'gem':{
+        const pulse=Math.sin(frame*0.15)*20;
+        ctx.fillStyle=`rgb(0,${200+pulse|0},${220+pulse|0})`;
+        ctx.beginPath();
+        ctx.moveTo(x+16,y+4+bob);
+        ctx.lineTo(x+26,y+14+bob);
+        ctx.lineTo(x+16,y+28+bob);
+        ctx.lineTo(x+6, y+14+bob);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle=P.gemShine;
+        ctx.beginPath();
+        ctx.moveTo(x+16,y+4+bob);
+        ctx.lineTo(x+22,y+14+bob);
+        ctx.lineTo(x+16,y+14+bob);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      }
+      case 'sword':{
+        ctx.save();
+        ctx.translate(x+16,y+16+bob);
+        ctx.rotate(Math.PI/4);
+        ctx.fillStyle=P.sword;
+        ctx.fillRect(-2,-14,4,22);
+        ctx.fillStyle='#8B4513';
+        ctx.fillRect(-6,-2,12,5);
+        ctx.fillStyle='#FFD700';
+        ctx.fillRect(-1,-16,2,3);
+        ctx.restore();
+        break;
+      }
+      case 'torch':{
+        ctx.fillStyle='#8B4513';
+        ctx.fillRect(x+14,y+10+bob,5,20);
+        const flame=Math.sin(frame*0.2)*3;
+        ctx.fillStyle='#FF4400';
+        ctx.beginPath();
+        ctx.arc(x+16,y+8+bob+flame,7,0,Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle='#FFAA00';
+        ctx.beginPath();
+        ctx.arc(x+16,y+9+bob,4,0,Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle='#FFFF00';
+        ctx.beginPath();
+        ctx.arc(x+16,y+10+bob,2,0,Math.PI*2);
+        ctx.fill();
+        // glow
+        ctx.fillStyle=`rgba(255,150,0,${0.1+Math.sin(frame*0.2)*0.05})`;
+        ctx.beginPath();
+        ctx.arc(x+16,y+8+bob,16,0,Math.PI*2);
+        ctx.fill();
+        break;
+      }
+    }
+  }
+  // Draw door
+  const room=ROOMS[currentRoom];
+  if(room.door&&!room.door.collected){
+    const d=room.door;
+    const x=d.tx*TS, y=d.ty*TS;
+    ctx.fillStyle=P.door;
+    ctx.fillRect(x+4,y+2,TS-8,TS-2);
+    ctx.fillStyle=P.doorDark;
+    ctx.fillRect(x+6,y+4,TS-12,TS-8);
+    ctx.fillStyle='#FFD700';
+    ctx.beginPath();
+    ctx.arc(x+TS-8,y+TS/2,3,0,Math.PI*2);
+    ctx.fill();
+    // glow if key available
+    if(keys_inv>0){
+      ctx.fillStyle=`rgba(255,120,0,${0.15+Math.sin(frame*0.15)*0.08})`;
+      ctx.fillRect(x,y,TS,TS);
+    }
+  }
+}
+
+function drawProjectile(){
+  if(!projectile||!projectile.alive) return;
+  ctx.save();
+  ctx.translate(projectile.x+8,projectile.y+4);
+  const angle=Math.atan2(projectile.vy,projectile.vx)+frame*0.5;
+  ctx.rotate(angle);
+  ctx.fillStyle='#C0C0C0';
+  ctx.fillRect(-8,-2,16,4);
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(-2,-3,4,6);
+  ctx.restore();
+}
+
+function drawPlayer(){
+  if(player.invTimer>0 && frame%4<2) return;
+  const x=Math.round(player.x), y=Math.round(player.y);
+  const f=player.facingRight;
+
+  ctx.save();
+  if(!f){ ctx.translate(x+player.w,y); ctx.scale(-1,1); ctx.translate(-x,-y); }
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x+11,y+player.h+2,10,3,0,0,Math.PI*2);
+  ctx.fill();
+
+  // Legs (animated)
+  const legPhase = player.animFrame;
+  ctx.fillStyle=P.pants;
+  if(player.onGround && Math.abs(player.vx)>0.5){
+    // walking
+    ctx.fillRect(x+4, y+20, 6, 8+(legPhase%2)*3);
+    ctx.fillRect(x+12,y+20, 6, 8+(1-legPhase%2)*3);
+  } else if(!player.onGround){
+    // jumping
+    ctx.fillRect(x+3, y+20, 6, 6);
+    ctx.fillRect(x+13,y+20, 6, 6);
+  } else {
+    ctx.fillRect(x+4, y+20, 6, 8);
+    ctx.fillRect(x+12,y+20, 6, 8);
+  }
+  // Shoes
+  ctx.fillStyle='#222';
+  ctx.fillRect(x+3, y+27, 7,3);
+  ctx.fillRect(x+12,y+27, 7,3);
+
+  // Body / shirt
+  ctx.fillStyle=P.pedro;
+  ctx.fillRect(x+3,y+10,16,11);
+  // Belt
+  ctx.fillStyle='#8B4513';
+  ctx.fillRect(x+3,y+19,16,3);
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(x+9,y+19,4,3);
+
+  // Arms
+  ctx.fillStyle=P.skin;
+  if(player.onLadder||player.onRope){
+    ctx.fillRect(x+0, y+12,4,8);
+    ctx.fillRect(x+18,y+12,4,8);
+  } else {
+    ctx.fillRect(x+0, y+12,3,7);
+    ctx.fillRect(x+19,y+12,3,7);
+  }
+
+  // Head
+  ctx.fillStyle=P.skin;
+  ctx.fillRect(x+5,y+1,12,10);
+
+  // Hat brim
+  ctx.fillStyle=P.hat;
+  ctx.fillRect(x+3,y-1,16,4);
+  // Hat top
+  ctx.fillRect(x+5,y-6,10,6);
+
+  // Eyes
+  ctx.fillStyle='#111';
+  ctx.fillRect(x+8,y+4,2,2);
+  ctx.fillRect(x+13,y+4,2,2);
+
+  ctx.restore();
+}
+
+function drawEnemies(){
+  for(const en of enemies){
+    if(!en.alive) continue;
+    const x=Math.round(en.x), y=Math.round(en.y);
+    const bob=Math.sin(frame*0.15+en.origX)*2;
+
+    if(en.stunTimer>0){
+      // stunned — draw stars
+      ctx.fillStyle='#FFD700';
+      for(let i=0;i<3;i++){
+        const a=frame*0.2+i*(Math.PI*2/3);
+        ctx.fillRect(x+12+Math.cos(a)*12,y-8+Math.sin(a)*6,3,3);
+      }
+    }
+
+    if(en.type==='skull'){
+      ctx.fillStyle=P.skull;
+      // cranium
+      ctx.beginPath();
+      ctx.arc(x+12,y+8+bob,10,0,Math.PI*2);
+      ctx.fill();
+      ctx.fillRect(x+4,y+14+bob,16,9);
+      // eye sockets
+      ctx.fillStyle=P.skullEye;
+      ctx.fillRect(x+5,y+5+bob,5,5);
+      ctx.fillRect(x+13,y+5+bob,5,5);
+      // nose
+      ctx.fillRect(x+10,y+11+bob,4,3);
+      // teeth
+      ctx.fillStyle=P.skull;
+      for(let i=0;i<3;i++) ctx.fillRect(x+5+i*5,y+19+bob,3,5);
+      ctx.fillStyle=P.skullEye;
+      ctx.fillRect(x+4,y+18+bob,16,1);
+      // glow eyes
+      ctx.fillStyle=`rgba(255,50,0,${0.5+Math.sin(frame*0.2)*0.3})`;
+      ctx.fillRect(x+5,y+5+bob,5,5);
+      ctx.fillRect(x+13,y+5+bob,5,5);
+    }
+
+    if(en.type==='spider'){
+      ctx.fillStyle=P.spider;
+      // body
+      ctx.beginPath();
+      ctx.arc(x+12,y+10+bob,9,0,Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x+12,y+20+bob,7,0,Math.PI*2);
+      ctx.fill();
+      // legs
+      ctx.strokeStyle=P.spider;
+      ctx.lineWidth=2;
+      const legAnim=Math.sin(frame*0.25)*0.4;
+      for(let i=0;i<4;i++){
+        const side=i<2?-1:1;
+        const idx=i%2;
+        const lx=x+12+side*9;
+        const ly=y+12+bob;
+        const ex=x+12+side*(18+idx*6);
+        const ey=y+6+bob+idx*12+Math.sin(frame*0.3+i)*4;
+        ctx.beginPath();
+        ctx.moveTo(lx,ly);
+        ctx.lineTo((lx+ex)/2+side*3,ly+6);
+        ctx.lineTo(ex,ey);
+        ctx.stroke();
+      }
+      // eyes
+      ctx.fillStyle='#FF00FF';
+      for(let i=0;i<4;i++){
+        ctx.fillRect(x+6+i*3,y+6+bob,2,2);
+      }
+    }
+
+    if(en.type==='snake'){
+      const segments=5;
+      const sw=frame*0.1;
+      for(let i=segments-1;i>=0;i--){
+        const wave=Math.sin(sw+i*0.8)*5;
+        const sx=x+i*6-(en.vx>0?0:24);
+        const sy=y+wave+bob;
+        ctx.fillStyle=i===0?'#007A33':P.snake;
+        if(i%2===0) ctx.fillStyle=i===0?'#00AA44':'#009933';
+        ctx.beginPath();
+        ctx.arc(sx+8,sy+8,7-i*0.5,0,Math.PI*2);
+        ctx.fill();
+      }
+      // eyes
+      const headX=en.vx>0?x+24:x+4;
+      ctx.fillStyle='#FFFF00';
+      ctx.fillRect(headX,y+bob+3,3,3);
+      ctx.fillStyle='#000';
+      ctx.fillRect(headX+1,y+bob+4,1,1);
+      // tongue
+      if(frame%20<10){
+        ctx.strokeStyle='#FF0000';
+        ctx.lineWidth=1;
+        ctx.beginPath();
+        ctx.moveTo(en.vx>0?x+32:x,y+8+bob);
+        ctx.lineTo(en.vx>0?x+38:x-6,y+6+bob);
+        ctx.moveTo(en.vx>0?x+38:x-6,y+6+bob);
+        ctx.lineTo(en.vx>0?x+36:x-4,y+4+bob);
+        ctx.moveTo(en.vx>0?x+38:x-6,y+6+bob);
+        ctx.lineTo(en.vx>0?x+36:x-4,y+8+bob);
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function drawDeathAnim(){
+  if(!player.dead) return;
+  ctx.fillStyle=`rgba(255,50,0,${0.3*Math.sin(frame*0.3)})`;
+  ctx.fillRect(0,0,W,H);
+}
+
+function drawOverlay(title,sub1,sub2){
+  ctx.fillStyle='rgba(0,0,0,0.82)';
+  ctx.fillRect(0,0,W,H);
+  // Title glow
+  ctx.shadowColor='#FF8C00';
+  ctx.shadowBlur=30;
+  ctx.fillStyle='#FFD700';
+  ctx.font='bold 20px "Press Start 2P",monospace';
+  ctx.textAlign='center';
+  ctx.fillText(title,W/2,H/2-60);
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#FF6600';
+  ctx.font='9px "Press Start 2P",monospace';
+  ctx.fillText(sub1,W/2,H/2);
+  if(sub2){
+    ctx.fillStyle='#888';
+    ctx.fillText(sub2,W/2,H/2+30);
+  }
+  ctx.fillStyle='#fff';
+  ctx.font='7px "Press Start 2P",monospace';
+  if(frame%60<35) ctx.fillText('PRESS SPACE',W/2,H/2+70);
+}
+
+function drawWin(){
+  ctx.fillStyle='rgba(0,0,0,0.75)';
+  ctx.fillRect(0,0,W,H);
+  const t=winTimer;
+  // Confetti
+  for(let i=0;i<40;i++){
+    const cx=(i*113+frame*2)%W;
+    const cy=(i*71+frame*3+t*2)%H;
+    ctx.fillStyle=['#FFD700','#FF4500','#00FFFF','#FF00FF','#00FF88'][i%5];
+    ctx.fillRect(cx,cy,6,6);
+  }
+  ctx.shadowColor='#FFD700';
+  ctx.shadowBlur=40;
+  ctx.fillStyle='#FFD700';
+  ctx.font='bold 18px "Press Start 2P",monospace';
+  ctx.textAlign='center';
+  ctx.fillText('YOU WIN!',W/2,H/2-50);
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#fff';
+  ctx.font='9px "Press Start 2P",monospace';
+  ctx.fillText(`SCORE: ${String(score).padStart(6,'0')}`,W/2,H/2+10);
+  ctx.fillStyle='#888';
+  ctx.font='7px "Press Start 2P",monospace';
+  ctx.fillText('THE VAULT OF THE ANCIENTS IS YOURS!',W/2,H/2+50);
+  if(winTimer<=0 && frame%60<35){
+    ctx.fillStyle='#fff';
+    ctx.fillText('PRESS SPACE',W/2,H/2+90);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MAIN LOOP
+// ═══════════════════════════════════════════════════════════════════════
+function loop(){
+  frame++;
+  conveyorOffset=(conveyorOffset+1)%TS;
+
+  if(gState==='title'){
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,0,W,H);
+    // scroll stars
+    ctx.fillStyle='rgba(255,255,255,0.4)';
+    for(let i=0;i<50;i++){
+      const sx=(i*113+37)%W;
+      const sy=((i*71+13)+frame*0.3)%H;
+      ctx.fillRect(sx,sy,1+(i%3===0?1:0),1);
+    }
+    if(keysJustPressed['Space']){
+      initAudio();
+      document.getElementById('overlay').style.display='none';
+      startGame();
+    }
+  }
+
+  if(gState==='playing'){
+    updatePlayer();
+    if(!player.dead){
+      updateEnemies();
+      updateProjectile();
+    } else {
+      deathTimer--;
+      player.y += player.vy;
+      player.vy += 0.4;
+      if(deathTimer<=0){
+        lives--;
+        updateHUD();
+        if(lives<=0){ gState='gameover'; hiScore=Math.max(hiScore,score); }
+        else {
+          // Respawn in same room
+          player=null;
+          initRoom(currentRoom,
+            ROOMS[currentRoom].exits[0]?ROOMS[currentRoom].exits[0].toX:1*TS+4,
+            12*TS-28);
+          gState='playing';
+        }
+      }
+    }
+    // Flash message
+    if(flashTimer>0){
+      flashTimer--;
+      if(flashTimer<=0) document.getElementById('msg-flash').style.opacity='0';
+    }
+
+    drawRoom();
+    drawItems();
+    drawEnemies();
+    drawProjectile();
+    drawPlayer();
+    drawDeathAnim();
+  }
+
+  if(gState==='gameover'){
+    drawRoom();
+    drawOverlay('GAME OVER',`SCORE: ${String(score).padStart(6,'0')}`,'PRESS SPACE TO RETRY');
+    if(keysJustPressed['Space']){
+      startGame();
+    }
+  }
+
+  if(gState==='win'){
+    drawRoom();
+    drawWin();
+    if(winTimer>0) winTimer--;
+    if(winTimer<=0 && keysJustPressed['Space']){
+      hiScore=Math.max(hiScore,score);
+      document.getElementById('overlay').style.display='flex';
+      document.getElementById('hiScore').textContent=String(hiScore).padStart(6,'0');
+      gState='title';
+    }
+  }
+
+  clearJust();
+  requestAnimationFrame(loop);
+}
+
+// Mobile touch controls
+function addTouchControls(){
+  const style=document.createElement('style');
+  style.textContent=`
+    #touch-pad{position:fixed;bottom:16px;left:0;right:0;display:flex;
+      justify-content:space-between;padding:0 16px;pointer-events:none;z-index:20;}
+    .touch-group{display:flex;gap:8px;}
+    .tbtn{width:56px;height:56px;background:rgba(255,255,255,0.12);
+      border:2px solid rgba(255,255,255,0.3);border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:18px;pointer-events:all;user-select:none;
+      font-family:"Press Start 2P",monospace;color:#fff;
+      -webkit-tap-highlight-color:transparent;}
+    .tbtn:active{background:rgba(255,200,0,0.25);}
+  `;
+  document.head.appendChild(style);
+  const pad=document.createElement('div');
+  pad.id='touch-pad';
+  pad.innerHTML=`
+    <div class="touch-group">
+      <div class="tbtn" id="tb-l">◀</div>
+      <div class="tbtn" id="tb-r">▶</div>
+    </div>
+    <div class="touch-group">
+      <div class="tbtn" id="tb-x">⚔</div>
+      <div class="tbtn" id="tb-up">▲</div>
+    </div>
+  `;
+  document.body.appendChild(pad);
+  function mapBtn(id,code){
+    const el=document.getElementById(id);
+    el.addEventListener('touchstart',e=>{e.preventDefault();keysDown[code]=true;keysJustPressed[code]=true;});
+    el.addEventListener('touchend',  e=>{e.preventDefault();keysDown[code]=false;});
+  }
+  mapBtn('tb-l','ArrowLeft');
+  mapBtn('tb-r','ArrowRight');
+  mapBtn('tb-up','Space');
+  mapBtn('tb-x','KeyX');
+}
+
+addTouchControls();
+updateHUD();
+requestAnimationFrame(loop);
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('[PWA] SW registered:', reg.scope))
+      .catch(err => console.warn('[PWA] SW failed:', err));
+  });
+}
+</script>
+</body>
+</html>
