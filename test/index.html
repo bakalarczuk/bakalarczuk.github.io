@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Strengths Profile — web app</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a31;
+      --panel-2: #182342;
+      --text: #eef2ff;
+      --muted: #a8b3cf;
+      --accent: #7aa2ff;
+      --accent-2: #95f3d8;
+      --danger: #ff8f8f;
+      --border: rgba(255,255,255,0.08);
+      --shadow: 0 10px 30px rgba(0,0,0,0.28);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #09101d 0%, #0d1428 100%);
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .hero, .card {
+      background: rgba(18, 26, 49, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .hero {
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+
+    h1, h2, h3 { margin: 0 0 12px; }
+    p { line-height: 1.55; }
+    .muted { color: var(--muted); }
+
+    .grid {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: 1.1fr 0.9fr;
+    }
+
+    .card { padding: 22px; }
+
+    .modes {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    button, .btn {
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      background: var(--accent);
+      color: #081121;
+      font-weight: 700;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: 0.18s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button.secondary {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    button.ghost {
+      background: rgba(255,255,255,0.04);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    button:hover, .btn:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .hidden { display: none !important; }
+
+    .app-shell {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: 280px 1fr;
+      align-items: start;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 20px;
+    }
+
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .progress-wrap {
+      margin-top: 18px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 0.25s ease;
+    }
+
+    .question-card {
+      min-height: 420px;
+    }
+
+    .question-number {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .pair-grid {
+      display: grid;
+      grid-template-columns: 1fr 120px 1fr;
+      gap: 16px;
+      align-items: stretch;
+      margin-top: 18px;
+    }
+
+    .statement {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      background: rgba(255,255,255,0.02);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 210px;
+    }
+
+    .statement strong {
+      font-size: 20px;
+      line-height: 1.35;
+    }
+
+    .versus {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-weight: 800;
+      letter-spacing: 0.12em;
+    }
+
+    .scale {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .scale button.selected,
+    .statement button.selected,
+    .mode-btn.selected {
+      outline: 2px solid var(--accent-2);
+      background: rgba(149, 243, 216, 0.18);
+      color: var(--text);
+      border-color: rgba(149, 243, 216, 0.35);
+    }
+
+    .nav-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .top-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .result-item {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(255,255,255,0.03);
+    }
+
+    .result-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .pill {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(122, 162, 255, 0.14);
+      color: #dce7ff;
+      border: 1px solid rgba(122, 162, 255, 0.25);
+    }
+
+    .bar {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+      margin: 10px 0 8px;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    }
+
+    .ranking {
+      margin-top: 22px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .ranking-row {
+      display: grid;
+      grid-template-columns: 50px 1fr 90px;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+    }
+
+    .small { font-size: 13px; }
+
+    textarea {
+      width: 100%;
+      min-height: 160px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.18);
+      color: var(--text);
+      padding: 14px;
+      font: inherit;
+    }
+
+    .footer-note {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 900px) {
+      .grid, .app-shell, .pair-grid {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        position: static;
+      }
+      .versus {
+        min-height: 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <h1>Strengths Profile</h1>
+      <p>
+        Oryginalna aplikacja do badania dominujących wzorców działania. Format jest inspirowany testami mocnych stron,
+        ale nie kopiuje brandingu ani treści CliftonStrengths / Gallupa.
+      </p>
+      <div class="modes">
+        <button id="startPairBtn" class="mode-btn">Tryb A vs B</button>
+        <button id="startScaleBtn" class="mode-btn secondary">Tryb skala 1–5</button>
+      </div>
+      <p class="footer-note">
+        Możesz przejść jeden tryb albo oba. Końcowy ranking łączy wyniki ze wszystkich ukończonych części.
+      </p>
+    </section>
+
+    <div class="app-shell hidden" id="appShell">
+      <aside class="card sidebar">
+        <h3>Postęp</h3>
+        <div class="stat"><span>Aktywny tryb</span><strong id="activeModeLabel">—</strong></div>
+        <div class="stat"><span>Odpowiedzi A/B</span><strong id="pairAnswered">0 / 34</strong></div>
+        <div class="stat"><span>Odpowiedzi skala</span><strong id="scaleAnswered">0 / 34</strong></div>
+        <div class="progress-wrap">
+          <div class="small muted" id="progressText">0% ukończone</div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
+        <div class="modes" style="margin-top:18px;">
+          <button id="switchPairBtn" class="ghost">A vs B</button>
+          <button id="switchScaleBtn" class="ghost">Skala 1–5</button>
+          <button id="resultsBtn" class="secondary">Pokaż wynik</button>
+          <button id="resetBtn" class="secondary">Reset</button>
+        </div>
+      </aside>
+
+      <main>
+        <section class="card question-card" id="pairView"></section>
+        <section class="card question-card hidden" id="scaleView"></section>
+        <section class="card hidden" id="resultsView"></section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const traits = [
+      { id: 'achievement_drive', name: 'Achievement Drive', desc: 'Silna potrzeba działania, domykania spraw i utrzymywania tempa.' },
+      { id: 'action_bias', name: 'Action Bias', desc: 'Naturalna skłonność do rozpoczynania zamiast zbyt długiego czekania.' },
+      { id: 'adaptability', name: 'Adaptability', desc: 'Elastyczne reagowanie na zmianę i komfort w dynamicznym środowisku.' },
+      { id: 'analytical_thinking', name: 'Analytical Thinking', desc: 'Potrzeba rozumienia mechanizmów, przyczyn i logiki.' },
+      { id: 'orchestration', name: 'Orchestration', desc: 'Łączenie ludzi, zasobów i zadań w spójną całość.' },
+      { id: 'conviction', name: 'Conviction', desc: 'Działanie zgodne z wartościami i wewnętrznym kompasem.' },
+      { id: 'leadership_presence', name: 'Leadership Presence', desc: 'Skłonność do przejmowania steru i wyznaczania kierunku.' },
+      { id: 'communication', name: 'Communication', desc: 'Łatwość wyrażania myśli w sposób angażujący i zrozumiały.' },
+      { id: 'competition', name: 'Competition', desc: 'Motywacja do mierzenia wyników i bycia lepszym od punktu odniesienia.' },
+      { id: 'connectedness', name: 'Connectedness', desc: 'Dostrzeganie powiązań między ludźmi, zdarzeniami i systemami.' },
+      { id: 'consistency', name: 'Consistency', desc: 'Dążenie do jasnych zasad, równego traktowania i przewidywalności.' },
+      { id: 'context', name: 'Context', desc: 'Potrzeba rozumienia tła, historii i wcześniejszych decyzji.' },
+      { id: 'prudence', name: 'Prudence', desc: 'Ostrożność, kalkulacja ryzyka i unikanie pochopnych decyzji.' },
+      { id: 'growth_orientation', name: 'Growth Orientation', desc: 'Zainteresowanie potencjałem, rozwojem i wzrostem innych ludzi.' },
+      { id: 'discipline', name: 'Discipline', desc: 'Porządek, struktura, plan i kontrola nad procesem.' },
+      { id: 'empathy', name: 'Empathy', desc: 'Wyczuwanie stanów emocjonalnych innych i reagowanie z wrażliwością.' },
+      { id: 'focus', name: 'Focus', desc: 'Umiejętność utrzymania kierunku i koncentracji na priorytecie.' },
+      { id: 'future_vision', name: 'Future Vision', desc: 'Naturalne myślenie o tym, co może powstać w przyszłości.' },
+      { id: 'harmony', name: 'Harmony', desc: 'Szukasz zgody, punktów wspólnych i ograniczania napięć.' },
+      { id: 'ideation', name: 'Ideation', desc: 'Łączenie pozornie odległych wątków w nowe pomysły.' },
+      { id: 'inclusion', name: 'Inclusion', desc: 'Dbanie o to, by nikt nie został pominięty lub wykluczony.' },
+      { id: 'individualization', name: 'Individualization', desc: 'Szybkie wychwytywanie różnic między ludźmi i ich unikalności.' },
+      { id: 'input', name: 'Input', desc: 'Gromadzenie wiedzy, materiałów, inspiracji i danych na przyszłość.' },
+      { id: 'intellect', name: 'Intellect', desc: 'Potrzeba myślenia, refleksji i pracy na poziomie idei.' },
+      { id: 'learner', name: 'Learner', desc: 'Satysfakcja z samego procesu uczenia się i poszerzania kompetencji.' },
+      { id: 'optimization', name: 'Optimization', desc: 'Wzmacnianie tego, co już działa dobrze, zamiast naprawiania wszystkiego.' },
+      { id: 'positivity', name: 'Positivity', desc: 'Wnoszenie energii, optymizmu i wzmacnianie morale.' },
+      { id: 'relator', name: 'Relator', desc: 'Budowanie głębszych, bardziej autentycznych relacji zamiast szerokiej sieci.' },
+      { id: 'responsibility', name: 'Responsibility', desc: 'Silne poczucie zobowiązania i dotrzymywania obietnic.' },
+      { id: 'restorative', name: 'Restorative', desc: 'Skłonność do diagnozowania problemów i przywracania sprawności.' },
+      { id: 'self_assurance', name: 'Self-Assurance', desc: 'Wewnętrzna pewność decyzji i gotowość do oparcia się na własnym osądzie.' },
+      { id: 'significance', name: 'Significance', desc: 'Potrzeba robienia rzeczy ważnych, zauważalnych i mających wpływ.' },
+      { id: 'strategic', name: 'Strategic Thinking', desc: 'Szybkie dostrzeganie alternatywnych ścieżek i wzorców działania.' },
+      { id: 'woo', name: 'Social Magnetism', desc: 'Łatwość nawiązywania kontaktu i zdobywania sympatii nowych osób.' }
+    ];
+
+    const pairQuestions = [
+      ['achievement_drive', 'adaptability', 'Lepiej czuję się, gdy mam dużo do zrobienia i mogę stale odhaczać kolejne cele.', 'Lepiej czuję się, gdy mogę elastycznie reagować na to, co przynosi dzień.'],
+      ['action_bias', 'prudence', 'Wolę uruchomić coś szybko i poprawiać w trakcie.', 'Wolę sprawdzić ryzyka i dopiero wtedy ruszyć.'],
+      ['analytical_thinking', 'empathy', 'Najpierw próbuję zrozumieć mechanizm problemu.', 'Najpierw próbuję zrozumieć ludzi i emocje w sytuacji.'],
+      ['orchestration', 'individualization', 'Naturalnie układam role, zadania i współzależności w zespole.', 'Naturalnie dopasowuję podejście do konkretnej osoby.'],
+      ['conviction', 'consistency', 'Najważniejsze jest dla mnie działanie zgodne z moimi wartościami.', 'Najważniejsze są dla mnie czytelne zasady i równe standardy.'],
+      ['leadership_presence', 'harmony', 'Gdy trzeba, biorę ster w ręce i nadaję kierunek.', 'Wolę tak poprowadzić rozmowę, żeby utrzymać zgodę.'],
+      ['communication', 'intellect', 'Łatwiej mi porządkować myśli, kiedy mogę je wypowiedzieć.', 'Łatwiej mi porządkować myśli, kiedy mogę je samodzielnie przemyśleć.'],
+      ['competition', 'relator', 'Mocno motywuje mnie porównywanie wyników i wygrywanie.', 'Mocno motywuje mnie praca z ludźmi, z którymi mam prawdziwe zaufanie.'],
+      ['connectedness', 'strategic', 'Widzę szerokie powiązania między zjawiskami i ludźmi.', 'Widzę kilka możliwych dróg dojścia do celu i szybko wybieram najlepszą.'],
+      ['context', 'future_vision', 'Żeby dobrze działać, chcę znać tło i historię sytuacji.', 'Żeby dobrze działać, chcę widzieć, do czego to może doprowadzić.'],
+      ['growth_orientation', 'restorative', 'Najbardziej interesuje mnie rozwijanie potencjału.', 'Najbardziej interesuje mnie naprawianie tego, co nie działa.'],
+      ['discipline', 'adaptability', 'Wolę jasny plan, rytm i porządek.', 'Wolę swobodę reagowania na bieżąco.'],
+      ['focus', 'ideation', 'Najmocniejszy jestem wtedy, gdy mam jeden wyraźny priorytet.', 'Najmocniejszy jestem wtedy, gdy mogę eksplorować dużo pomysłów.'],
+      ['inclusion', 'competition', 'Chcę, żeby każdy miał miejsce przy stole.', 'Chcę wiedzieć, kto naprawdę osiąga najlepszy wynik.'],
+      ['input', 'communication', 'Lubię gromadzić ciekawe informacje i materiały na przyszłość.', 'Lubię nadawać informacjom formę i przekazywać je ludziom.'],
+      ['learner', 'optimization', 'Największą satysfakcję daje mi sam proces uczenia się.', 'Największą satysfakcję daje mi doskonalenie mocnych stron.'],
+      ['positivity', 'responsibility', 'Naturalnie wnoszę energię i podnoszę ludzi na duchu.', 'Naturalnie biorę na siebie zobowiązania i pilnuję, żeby dowieźć.'],
+      ['self_assurance', 'prudence', 'Ufamy sobie i własnemu osądowi nawet przy niepełnych danych.', 'Wolę ograniczyć niepewność przed podjęciem decyzji.'],
+      ['significance', 'harmony', 'Chcę robić rzeczy, które mają widoczny ciężar i wpływ.', 'Chcę robić rzeczy w sposób, który niepotrzebnie nie eskaluje tarć.'],
+      ['woo', 'relator', 'Łatwo nawiązuję kontakt z nowymi ludźmi.', 'Wolę inwestować głębiej w mniejszą liczbę relacji.'],
+      ['achievement_drive', 'focus', 'Napędza mnie wysokie tempo wykonania.', 'Napędza mnie jasny i niezmienny kierunek.'],
+      ['analytical_thinking', 'strategic', 'Rozkładam problem na logikę i dowody.', 'Szybko widzę możliwe ścieżki i ruchy do przodu.'],
+      ['communication', 'woo', 'Lubię opowiadać, wyjaśniać i porządkować przekaz.', 'Lubię zdobywać sympatię i łatwo łapię kontakt.'],
+      ['conviction', 'significance', 'Ważniejsze jest dla mnie bycie wiernym zasadom.', 'Ważniejsze jest dla mnie, by to co robię miało widoczny ciężar.'],
+      ['consistency', 'individualization', 'Wolę wspólne standardy dla wszystkich.', 'Wolę dopasować podejście do konkretnej osoby.'],
+      ['context', 'ideation', 'Najpierw patrzę wstecz, żeby zrozumieć teraźniejszość.', 'Najpierw generuję nowe połączenia i możliwości.'],
+      ['discipline', 'action_bias', 'Wolę działać według struktury.', 'Wolę ruszyć szybko i nadać rytm działaniem.'],
+      ['empathy', 'leadership_presence', 'Najpierw wyczuwam ludzi.', 'Najpierw porządkuję kierunek i decyzje.'],
+      ['future_vision', 'restorative', 'Mocno widzę to, co dopiero może powstać.', 'Mocno widzę, co trzeba naprawić tu i teraz.'],
+      ['growth_orientation', 'learner', 'Lubię wspierać rozwój innych.', 'Lubię rozwijać przede wszystkim własne kompetencje przez naukę.'],
+      ['input', 'intellect', 'Zbieram wiedzę i zasoby.', 'Przetwarzam idee przez głębokie myślenie.'],
+      ['optimization', 'restorative', 'Wolę wzmacniać to, co jest już dobre.', 'Wolę naprawiać słabe punkty i awarie.'],
+      ['positivity', 'connectedness', 'Naturalnie podbijam energię grupy.', 'Naturalnie widzę szerszy sens i wzajemne połączenia.'],
+      ['responsibility', 'self_assurance', 'Czuję ciężar zobowiązań wobec innych.', 'Czuję wewnętrzną pewność własnych decyzji.']
+    ].map((q, index) => ({
+      id: index + 1,
+      leftTrait: q[0],
+      rightTrait: q[1],
+      leftText: q[2],
+      rightText: q[3]
+    }));
+
+    const scaleQuestions = [
+      ['achievement_drive', 'Mam naturalną potrzebę bycia produktywnym i domykania spraw.'],
+      ['action_bias', 'Gdy pojawia się pomysł, wolę zacząć działać niż długo czekać.'],
+      ['adaptability', 'Dobrze funkcjonuję, nawet gdy plan szybko się zmienia.'],
+      ['analytical_thinking', 'Intuicyjnie szukam logiki, przyczyn i danych.'],
+      ['orchestration', 'Lubię układać ludzi i zasoby tak, by działały razem sprawniej.'],
+      ['conviction', 'Bardzo ważne jest dla mnie działanie w zgodzie z wartościami.'],
+      ['leadership_presence', 'W grupie naturalnie przejmuję inicjatywę i kierunek.'],
+      ['communication', 'Potrafię jasno i obrazowo przekazać to, co mam na myśli.'],
+      ['competition', 'Porównywanie wyników realnie zwiększa moją motywację.'],
+      ['connectedness', 'Często dostrzegam szersze powiązania między ludźmi i zdarzeniami.'],
+      ['consistency', 'Cenię jasne zasady i równe traktowanie.'],
+      ['context', 'Żeby coś dobrze ocenić, chcę znać tło i historię.'],
+      ['prudence', 'Wolę najpierw ocenić ryzyko, a dopiero potem zdecydować.'],
+      ['growth_orientation', 'Lubię dostrzegać potencjał innych i pomagać go rozwijać.'],
+      ['discipline', 'Najlepiej działam, gdy mam plan, porządek i strukturę.'],
+      ['empathy', 'Łatwo wyczuwam emocje innych i odpowiednio reaguję.'],
+      ['focus', 'Potrafię długo utrzymać uwagę na jednym priorytecie.'],
+      ['future_vision', 'Regularnie myślę o tym, co może powstać w przyszłości.'],
+      ['harmony', 'Szukam zgody i wspólnego gruntu, zamiast zaostrzać konflikt.'],
+      ['ideation', 'Łatwo generuję nowe pomysły i łączę odległe wątki.'],
+      ['inclusion', 'Zwracam uwagę na to, żeby nikt nie został pominięty.'],
+      ['individualization', 'Szybko widzę, czym ludzie się od siebie różnią.'],
+      ['input', 'Lubię zbierać wiedzę, materiały i inspiracje na później.'],
+      ['intellect', 'Potrzebuję czasu na myślenie i głębszą refleksję.'],
+      ['learner', 'Sam proces uczenia się daje mi energię.'],
+      ['optimization', 'Najbardziej pociąga mnie wzmacnianie tego, co już działa dobrze.'],
+      ['positivity', 'Wnoszę energię i optymizm do zespołu lub rozmowy.'],
+      ['relator', 'Cenię głębokie, autentyczne relacje bardziej niż szeroką sieć kontaktów.'],
+      ['responsibility', 'Bardzo poważnie traktuję obietnice i zobowiązania.'],
+      ['restorative', 'Lubię diagnozować problemy i przywracać sprawność.'],
+      ['self_assurance', 'Zwykle ufam własnemu osądowi nawet w niepewności.'],
+      ['significance', 'Chcę robić rzeczy ważne i mające realny wpływ.'],
+      ['strategic', 'Szybko dostrzegam kilka możliwych dróg dojścia do celu.'],
+      ['woo', 'Łatwo nawiązuję kontakt z nowymi ludźmi i przełamuję lody.']
+    ].map((q, index) => ({ id: index + 1, trait: q[0], text: q[1] }));
+
+    const appState = {
+      activeMode: null,
+      pairAnswers: Array(pairQuestions.length).fill(null),
+      scaleAnswers: Array(scaleQuestions.length).fill(null)
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const appShell = $('appShell');
+    const pairView = $('pairView');
+    const scaleView = $('scaleView');
+    const resultsView = $('resultsView');
+
+    function start(mode) {
+      appState.activeMode = mode;
+      appShell.classList.remove('hidden');
+      resultsView.classList.add('hidden');
+      render();
+    }
+
+    function setMode(mode) {
+      appState.activeMode = mode;
+      render();
+    }
+
+    function answeredCount(arr) {
+      return arr.filter(v => v !== null).length;
+    }
+
+    function updateSidebar() {
+      $('activeModeLabel').textContent = appState.activeMode === 'pair' ? 'A vs B' : appState.activeMode === 'scale' ? 'Skala 1–5' : 'Wynik';
+      $('pairAnswered').textContent = `${answeredCount(appState.pairAnswers)} / ${pairQuestions.length}`;
+      $('scaleAnswered').textContent = `${answeredCount(appState.scaleAnswers)} / ${scaleQuestions.length}`;
+      const totalAnswered = answeredCount(appState.pairAnswers) + answeredCount(appState.scaleAnswers);
+      const total = pairQuestions.length + scaleQuestions.length;
+      const percent = Math.round((totalAnswered / total) * 100);
+      $('progressText').textContent = `${percent}% ukończone`;
+      $('progressFill').style.width = `${percent}%`;
+    }
+
+    function renderPairView() {
+      const currentIndex = Math.min(
+        Math.max(appState.pairAnswers.findIndex(v => v === null), 0),
+        pairQuestions.length - 1
+      );
+      const fallbackIndex = appState.pairAnswers.every(v => v !== null) ? pairQuestions.length - 1 : currentIndex;
+      const q = pairQuestions[fallbackIndex];
+      const selected = appState.pairAnswers[fallbackIndex];
+
+      pairView.innerHTML = `
+        <div class="question-number">Pytanie ${q.id} z ${pairQuestions.length} <span class="muted">• wybierz to, które bardziej do Ciebie pasuje</span></div>
+        <h2>Tryb A vs B</h2>
+        <p class="muted">Ten tryb premiuje wybór preferowanej tendencji zamiast deklarowania, że wszystko pasuje naraz.</p>
+        <div class="pair-grid">
+          <div class="statement">
+            <div>
+              <div class="pill">A</div>
+              <strong>${q.leftText}</strong>
+            </div>
+            <button class="ghost ${selected === 'left' ? 'selected' : ''}" data-side="left">To bardziej ja</button>
+          </div>
+          <div class="versus">VS</div>
+          <div class="statement">
+            <div>
+              <div class="pill">B</div>
+              <strong>${q.rightText}</strong>
+            </div>
+            <button class="ghost ${selected === 'right' ? 'selected' : ''}" data-side="right">To bardziej ja</button>
+          </div>
+        </div>
+        <div class="nav-row">
+          <button class="secondary" ${fallbackIndex === 0 ? 'disabled' : ''} id="pairPrevBtn">Poprzednie</button>
+          <button id="pairNextBtn">${fallbackIndex === pairQuestions.length - 1 ? 'Zakończ tryb A/B' : 'Następne'}</button>
+        </div>
+      `;
+
+      pairView.querySelectorAll('[data-side]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          appState.pairAnswers[fallbackIndex] = btn.dataset.side;
+          render();
+        });
+      });
+
+      $('pairPrevBtn')?.addEventListener('click', () => openPreviousPair(fallbackIndex));
+      $('pairNextBtn')?.addEventListener('click', () => openNextPair(fallbackIndex));
+    }
+
+    function openPreviousPair(index) {
+      if (index <= 0) return;
+      const temp = appState.pairAnswers.findIndex(v => v === null);
+      const target = index - 1;
+      if (temp !== -1 && temp !== target) {
+        appState.pairAnswers[temp] = '__bookmark__';
+        appState.pairAnswers[target] = appState.pairAnswers[target] ?? null;
+      }
+      renderPairAt(target);
+    }
+
+    function openNextPair(index) {
+      if (appState.pairAnswers[index] === null) return;
+      if (index >= pairQuestions.length - 1) {
+        showResults();
+        return;
+      }
+      renderPairAt(index + 1);
+    }
+
+    function renderPairAt(index) {
+      appState._pairCursor = index;
+      const q = pairQuestions[index];
+      const selected = appState.pairAnswers[index] === '__bookmark__' ? null : appState.pairAnswers[index];
+      pairView.innerHTML = `
+        <div class="question-number">Pytanie ${q.id} z ${pairQuestions.length} <span class="muted">• wybierz to, które bardziej do Ciebie pasuje</span></div>
+        <h2>Tryb A vs B</h2>
+        <p class="muted">Ten tryb premiuje wybór preferowanej tendencji zamiast deklarowania, że wszystko pasuje naraz.</p>
+        <div class="pair-grid">
+          <div class="statement">
+            <div>
+              <div class="pill">A</div>
+              <strong>${q.leftText}</strong>
+            </div>
+            <button class="ghost ${selected === 'left' ? 'selected' : ''}" data-side="left">To bardziej ja</button>
+          </div>
+          <div class="versus">VS</div>
+          <div class="statement">
+            <div>
+              <div class="pill">B</div>
+              <strong>${q.rightText}</strong>
+            </div>
+            <button class="ghost ${selected === 'right' ? 'selected' : ''}" data-side="right">To bardziej ja</button>
+          </div>
+        </div>
+        <div class="nav-row">
+          <button class="secondary" ${index === 0 ? 'disabled' : ''} id="pairPrevBtn">Poprzednie</button>
+          <button id="pairNextBtn">${index === pairQuestions.length - 1 ? 'Zakończ tryb A/B' : 'Następne'}</button>
+        </div>
+      `;
+      pairView.querySelectorAll('[data-side]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          appState.pairAnswers[index] = btn.dataset.side;
+          renderPairAt(index);
+          updateSidebar();
+        });
+      });
+      $('pairPrevBtn')?.addEventListener('click', () => renderPairAt(Math.max(0, index - 1)));
+      $('pairNextBtn')?.addEventListener('click', () => {
+        if (appState.pairAnswers[index] === null) return;
+        if (index === pairQuestions.length - 1) showResults();
+        else renderPairAt(index + 1);
+      });
+      pairView.classList.remove('hidden');
+      scaleView.classList.add('hidden');
+      resultsView.classList.add('hidden');
+      appState.activeMode = 'pair';
+      updateSidebar();
+    }
+
+    function renderScaleView() {
+      const currentIndex = Math.min(
+        Math.max(appState.scaleAnswers.findIndex(v => v === null), 0),
+        scaleQuestions.length - 1
+      );
+      const fallbackIndex = appState.scaleAnswers.every(v => v !== null) ? scaleQuestions.length - 1 : currentIndex;
+      renderScaleAt(fallbackIndex);
+    }
+
+    function renderScaleAt(index) {
+      const q = scaleQuestions[index];
+      const selected = appState.scaleAnswers[index];
+      scaleView.innerHTML = `
+        <div class="question-number">Pytanie ${q.id} z ${scaleQuestions.length} <span class="muted">• oceń, jak bardzo to do Ciebie pasuje</span></div>
+        <h2>Tryb skala 1–5</h2>
+        <p><strong>${q.text}</strong></p>
+        <div class="scale">
+          ${[1,2,3,4,5].map(v => `<button class="ghost ${selected === v ? 'selected' : ''}" data-value="${v}">${v}</button>`).join('')}
+        </div>
+        <div class="small muted" style="margin-top:12px;">1 = zupełnie nie, 5 = bardzo tak</div>
+        <div class="nav-row">
+          <button class="secondary" ${index === 0 ? 'disabled' : ''} id="scalePrevBtn">Poprzednie</button>
+          <button id="scaleNextBtn">${index === scaleQuestions.length - 1 ? 'Zakończ tryb skali' : 'Następne'}</button>
+        </div>
+      `;
+
+      scaleView.querySelectorAll('[data-value]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          appState.scaleAnswers[index] = Number(btn.dataset.value);
+          renderScaleAt(index);
+          updateSidebar();
+        });
+      });
+      $('scalePrevBtn')?.addEventListener('click', () => renderScaleAt(Math.max(0, index - 1)));
+      $('scaleNextBtn')?.addEventListener('click', () => {
+        if (appState.scaleAnswers[index] === null) return;
+        if (index === scaleQuestions.length - 1) showResults();
+        else renderScaleAt(index + 1);
+      });
+      pairView.classList.add('hidden');
+      scaleView.classList.remove('hidden');
+      resultsView.classList.add('hidden');
+      appState.activeMode = 'scale';
+      updateSidebar();
+    }
+
+    function computeScores() {
+      const scores = Object.fromEntries(traits.map(t => [t.id, { raw: 0, max: 0 }]));
+
+      pairQuestions.forEach((q, index) => {
+        const answer = appState.pairAnswers[index];
+        if (answer === 'left') {
+          scores[q.leftTrait].raw += 1;
+          scores[q.leftTrait].max += 1;
+          scores[q.rightTrait].max += 1;
+        } else if (answer === 'right') {
+          scores[q.rightTrait].raw += 1;
+          scores[q.leftTrait].max += 1;
+          scores[q.rightTrait].max += 1;
+        }
+      });
+
+      scaleQuestions.forEach((q, index) => {
+        const answer = appState.scaleAnswers[index];
+        if (answer !== null) {
+          scores[q.trait].raw += answer;
+          scores[q.trait].max += 5;
+        }
+      });
+
+      return traits.map(t => {
+        const traitScore = scores[t.id];
+        const percent = traitScore.max > 0 ? Math.round((traitScore.raw / traitScore.max) * 100) : 0;
+        return {
+          ...t,
+          raw: traitScore.raw,
+          max: traitScore.max,
+          percent
+        };
+      }).sort((a, b) => b.percent - a.percent || b.raw - a.raw || a.name.localeCompare(b.name));
+    }
+
+    function buildInterpretation(topFive) {
+      const names = topFive.map(t => t.name).join(', ');
+      const domains = {
+        execution: ['achievement_drive','discipline','focus','responsibility','restorative','optimization','prudence'],
+        influence: ['leadership_presence','communication','competition','self_assurance','significance','woo','action_bias'],
+        relationships: ['empathy','harmony','inclusion','individualization','relator','positivity','connectedness','growth_orientation'],
+        thinking: ['analytical_thinking','context','future_vision','ideation','input','intellect','learner','strategic','conviction','consistency','adaptability','orchestration']
+      };
+      const counts = { execution: 0, influence: 0, relationships: 0, thinking: 0 };
+      topFive.forEach(t => {
+        Object.entries(domains).forEach(([k, arr]) => { if (arr.includes(t.id)) counts[k]++; });
+      });
+      const dominant = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+      const map = {
+        execution: 'Masz profil nastawiony na realizację: dowożenie, odpowiedzialność i przekładanie intencji na wynik.',
+        influence: 'Masz profil wpływu: naturalnie nadajesz tempo, kierunek albo energię innym ludziom.',
+        relationships: 'Masz profil relacyjny: Twoją przewagą jest wyczucie ludzi, zaufanie i klimat współpracy.',
+        thinking: 'Masz profil strategiczno-koncepcyjny: Twoją przewagą jest analiza, wzorce, nauka i myślenie do przodu.'
+      };
+      return `${map[dominant]} Najwyżej wyszły u Ciebie: ${names}.`;
+    }
+
+    function showResults() {
+      const ranked = computeScores();
+      const topFive = ranked.slice(0, 5);
+      const exportData = {
+        generatedAt: new Date().toISOString(),
+        completed: {
+          pair: answeredCount(appState.pairAnswers),
+          scale: answeredCount(appState.scaleAnswers)
+        },
+        topFive: topFive.map(t => ({ name: t.name, percent: t.percent, raw: t.raw, max: t.max })),
+        ranking: ranked.map(t => ({ name: t.name, percent: t.percent, raw: t.raw, max: t.max }))
+      };
+
+      resultsView.innerHTML = `
+        <div class="results-header">
+          <div>
+            <h2>Twój profil mocnych stron</h2>
+            <p class="muted">Ranking oparty na ukończonych odpowiedziach z trybu A/B i skali 1–5.</p>
+          </div>
+          <div class="modes">
+            <button id="copyJsonBtn" class="secondary">Kopiuj JSON wyniku</button>
+            <button id="restartFromResultsBtn" class="ghost">Wróć do pytań</button>
+          </div>
+        </div>
+        <div class="top-list">
+          ${topFive.map((t, idx) => `
+            <div class="result-item">
+              <div class="result-head">
+                <div>
+                  <div class="small muted">TOP ${idx + 1}</div>
+                  <h3>${t.name}</h3>
+                </div>
+                <div class="pill">${t.percent}%</div>
+              </div>
+              <div class="bar"><span style="width:${t.percent}%"></span></div>
+              <p>${t.desc}</p>
+            </div>
+          `).join('')}
+        </div>
+        <div class="card" style="margin-top:20px; background:rgba(255,255,255,0.02);">
+          <h3>Interpretacja skrócona</h3>
+          <p>${buildInterpretation(topFive)}</p>
+        </div>
+        <div class="ranking">
+          ${ranked.map((t, idx) => `
+            <div class="ranking-row">
+              <strong>#${idx + 1}</strong>
+              <div>
+                <div>${t.name}</div>
+                <div class="small muted">${t.raw} / ${t.max || '—'} punktów</div>
+              </div>
+              <strong>${t.percent}%</strong>
+            </div>
+          `).join('')}
+        </div>
+        <div style="margin-top:18px;">
+          <div class="small muted" style="margin-bottom:8px;">Eksport JSON</div>
+          <textarea readonly id="jsonOutput">${JSON.stringify(exportData, null, 2)}</textarea>
+        </div>
+        <p class="footer-note">To jest autorski test profilujący. Nie jest oficjalnym narzędziem Gallupa ani CliftonStrengths.</p>
+      `;
+
+      $('copyJsonBtn').addEventListener('click', async () => {
+        const output = $('jsonOutput').value;
+        try {
+          await navigator.clipboard.writeText(output);
+          $('copyJsonBtn').textContent = 'Skopiowano';
+          setTimeout(() => $('copyJsonBtn').textContent = 'Kopiuj JSON wyniku', 1200);
+        } catch {
+          $('jsonOutput').select();
+          document.execCommand('copy');
+        }
+      });
+      $('restartFromResultsBtn').addEventListener('click', () => {
+        if (answeredCount(appState.pairAnswers) < pairQuestions.length) renderPairView();
+        else renderScaleView();
+      });
+
+      pairView.classList.add('hidden');
+      scaleView.classList.add('hidden');
+      resultsView.classList.remove('hidden');
+      appState.activeMode = 'results';
+      updateSidebar();
+    }
+
+    function resetAll() {
+      appState.pairAnswers = Array(pairQuestions.length).fill(null);
+      appState.scaleAnswers = Array(scaleQuestions.length).fill(null);
+      appState._pairCursor = 0;
+      start('pair');
+    }
+
+    function render() {
+      updateSidebar();
+      if (appState.activeMode === 'pair') renderPairView();
+      if (appState.activeMode === 'scale') renderScaleView();
+    }
+
+    $('startPairBtn').addEventListener('click', () => start('pair'));
+    $('startScaleBtn').addEventListener('click', () => start('scale'));
+    $('switchPairBtn').addEventListener('click', () => setMode('pair'));
+    $('switchScaleBtn').addEventListener('click', () => setMode('scale'));
+    $('resultsBtn').addEventListener('click', showResults);
+    $('resetBtn').addEventListener('click', resetAll);
+  </script>
+</body>
+</html>
